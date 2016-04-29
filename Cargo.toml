@@ -1,0 +1,6 @@
+[package]
+name = "baz"
+version = "0.1.0"
+authors = ["Joel Roller <roller@snth.net>"]
+
+[dependencies]
