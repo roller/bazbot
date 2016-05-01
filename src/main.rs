@@ -1,7 +1,8 @@
 extern crate baz;
 extern crate clap;
 extern crate dotenv;
-use clap::{Arg, App, SubCommand};
+use clap::{App, SubCommand};
+
 
 
 fn main(){
