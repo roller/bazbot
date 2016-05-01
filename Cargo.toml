@@ -4,3 +4,7 @@ version = "0.1.0"
 authors = ["Joel Roller <roller@snth.net>"]
 
 [dependencies]
+irc = "0.11.3"
+dotenv = "0.8.0"
+rusqlite = "0.6.0"
+clap = "2.3.0"
