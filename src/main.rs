@@ -16,7 +16,7 @@ fn main(){
                      WORDS_DB=db/words.db    Location of sqlite words db")
         .get_matches();
 
-    let baz = baz::Baz::new();
+    let baz = baz::Baz::new_from_env();
 
     match bazargs.subcommand_name() {
         Some("summary") => baz.summary(),
