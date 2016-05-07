@@ -9,13 +9,20 @@ fn cmd_complete(baz: &baz::Baz, matches: &ArgMatches) {
     baz.complete(prefix);
 }
 
+fn cmd_migrate(baz: &baz::Baz, matches: &ArgMatches) {
+     let res = baz.migrate();
+     println!("Migrate: {:?}", res);
+ }
+
 fn main(){
     dotenv::dotenv().ok();
     let bazargs = App::new("BenzoBaz WordBot")
-        .version("0.1")
+        .version("0.1.1")
         .author("Joel Roller <roller@gmail.com>")
         .subcommand(SubCommand::with_name("summary")
             .about("Summarize database"))
+        .subcommand(SubCommand::with_name("migrate")
+            .about("Create or sync database against current code"))
         .subcommand(SubCommand::with_name("complete")
             .about("Run a markov chain starting with args")
             .arg(Arg::with_name("prefix").multiple(true)))
@@ -27,6 +34,7 @@ fn main(){
 
     match bazargs.subcommand() {
         ("summary", Some(_)) => baz.summary(),
+        ("migrate", Some(subm)) => cmd_migrate(&baz, subm),
         ("complete", Some(subm)) => cmd_complete(&baz, subm),
         _ => {
             // Can't use App print_help because we

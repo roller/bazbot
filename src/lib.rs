@@ -2,7 +2,7 @@ extern crate rusqlite;
 extern crate rand;
 
 use std::env;
-use rusqlite::{Result, Connection};
+use rusqlite::{Result, Connection,Error};
 use rusqlite::types::ToSql;
 use rand::random;
 
@@ -35,6 +35,11 @@ impl<'a> NamedParam<'a> {
     }
 }
 
+#[derive(Debug)]
+struct Migration<'a> {
+    m_id: &'a str,
+    m_sql: &'a str,
+}
 
 #[derive(Debug)]
 pub struct Baz {
@@ -42,6 +47,7 @@ pub struct Baz {
 }
 impl Baz {
     pub fn new(db_url: String) -> Baz {
+        println!("Open db {}", db_url);
         Baz {
             db: Connection::open(db_url)
                 .expect("Could not open database")
@@ -65,6 +71,70 @@ impl Baz {
                 row.get::<i64>(0)
             }) {
             println!("Phrases: {}", phrases);
+        }
+    }
+
+    // Use a different technique for the very first migration:
+    // check sqlite_master table for the existance of the table
+    fn base_migration(&self) -> Result<()> {
+        let base = Migration {
+            m_id: "init",
+            m_sql: "create table migrations ( m_id primary key );"
+        };
+        let sql = "select name from sqlite_master where type='table' and name='migrations';";
+        let res = self.db.query_row(sql, &[], |row| ());
+        match res {
+            Ok(()) => Ok(()),
+            Err(Error::QueryReturnedNoRows) => self.run_migration(&base),
+            e @ Err(_) => e
+        }
+    }
+
+    pub fn migrate(&self) -> Result<()> {
+        try!(self.base_migration());
+        let migrations = vec![
+            Migration {
+                m_id: "words_and_phrases_init",
+                m_sql: "
+                CREATE TABLE words (word_id integer primary key autoincrement, spelling text not null);
+                CREATE TABLE phrases (
+                    word1 integer not null, word2 integer not null, word3 integer not null, freq integer
+                );
+                CREATE UNIQUE INDEX idx_words on words (word_id);
+                CREATE UNIQUE INDEX idx_spelling on words (spelling);
+                CREATE UNIQUE INDEX idx_phrases_u on phrases (word1,word2,word3);"
+            }
+        ];
+        for migration in migrations {
+            if !try!(self.check_migration(&migration)) {
+                try!(self.run_migration(&migration))
+            }
+        }
+        Ok(())
+    }
+
+    fn run_migration(&self, migration: &Migration) -> Result<()> {
+        println!("run migration: {:?}", migration.m_id);
+        try!(self.db.execute_batch(migration.m_sql));
+        try!(self.db.execute(
+            "insert into migrations (m_id) values (?)",
+            &[ &migration.m_id ]
+        ));
+        Ok(())
+    }
+
+    // returt true if migration is already logged in db
+    fn check_migration(&self, migration: &Migration) -> Result<bool> {
+        let check_sql = "select 1 from migrations where m_id = ?";
+        let params : Vec<&ToSql> = vec![&migration.m_id];
+        let res = self.db.query_row(&check_sql, &params,
+            |row| row.get::<Option<i64>>(0));
+        println!("Migration check {:?}: {:?}",migration.m_id ,res);
+        match res {
+            Err(Error::SqliteFailure(_,_)) => Ok(false), // returned when no migration table
+            Err(Error::QueryReturnedNoRows) => Ok(false),
+            Err(e) => Err(e),
+            Ok(_) => Ok(true)
         }
     }
 
