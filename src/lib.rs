@@ -82,7 +82,7 @@ impl Baz {
             m_sql: "create table migrations ( m_id primary key );"
         };
         let sql = "select name from sqlite_master where type='table' and name='migrations';";
-        let res = self.db.query_row(sql, &[], |row| ());
+        let res = self.db.query_row(sql, &[], |_| ());
         match res {
             Ok(()) => Ok(()),
             Err(Error::QueryReturnedNoRows) => self.run_migration(&base),

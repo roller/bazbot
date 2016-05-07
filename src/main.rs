@@ -9,7 +9,7 @@ fn cmd_complete(baz: &baz::Baz, matches: &ArgMatches) {
     baz.complete(prefix);
 }
 
-fn cmd_migrate(baz: &baz::Baz, matches: &ArgMatches) {
+fn cmd_migrate(baz: &baz::Baz, _matches: &ArgMatches) {
      let res = baz.migrate();
      println!("Migrate: {:?}", res);
  }
