@@ -14,17 +14,14 @@ enum BazError {
 type Result<T> = Result<T, Error>;
 */
 
-#[derive(Debug)]
-pub struct Baz {
-    db: Connection
-}
-
+// utility construct to pass names names with values
 struct NamedParam<'a> {
     field: String,
-    value: &'a ToSql
+    value: Box<ToSql + 'a>
 }
+
 impl<'a> NamedParam<'a> {
-    fn new(field: &str, value: &'a ToSql) -> NamedParam<'a>{
+    fn new(field: &str, value: Box<ToSql + 'a>) -> NamedParam<'a>{
         NamedParam {
             field: field.to_string(),
             value: value
@@ -34,12 +31,15 @@ impl<'a> NamedParam<'a> {
         params.iter().map(|w| { format!("{}=?", w.field) }).collect()
     }
     fn values(params: &'a Vec<NamedParam>) -> Vec<&'a ToSql> {
-        params.iter().map(|w| w.value).collect()
+        params.iter().map(|w| &*w.value).collect()
     }
 }
 
 
-
+#[derive(Debug)]
+pub struct Baz {
+    db: Connection
+}
 impl Baz {
     pub fn new(db_url: String) -> Baz {
         Baz {
@@ -66,54 +66,46 @@ impl Baz {
             }) {
             println!("Phrases: {}", phrases);
         }
-        self.query_next_word("That","was");
     }
 
-    pub fn query_next_word(&self, word1: &str, word2: &str) {
-        let res1 = self.get_word_id(word1);
-        let res2 = self.get_word_id(word2);
-        if let (Ok(Some(id1)), Ok(Some(id2))) = (res1, res2) {
-            println!("Found words {}, {}", id1, id2);
-            let filter_word_id = vec![
-                NamedParam::new("word1", &id1),
-                NamedParam::new("word2", &id2)
-            ];
-            match self.get_pair_freq_where_filter(&filter_word_id) {
-                Ok(Some(freq)) => {
-                    println!("Got frequency {}", freq);
-                    let pick = random::<i64>() % freq + 1;
-                    let next = self.get_next_word(id1,id2,pick)
-                        .expect("Couldn't find a word")
-                        .expect("There was no word");
-                    let spelling = self.get_spelling(next);
-                    println!("Found a word {:?}", spelling);
-                }
+    pub fn complete(&self, prefix: Vec<String> ) {
+        let fields: Vec<&str> = vec!["word1","word2"];
+
+        let filter: Vec<NamedParam> = fields.iter().zip(prefix).flat_map(|(field_name, prefixword)| {
+            let res = self.get_word_id(&prefixword);
+            match res {
+                Ok(Some(word_id)) => vec![ NamedParam::new(&*field_name, Box::new(word_id)) ],
                 Ok(None) => {
-                    println!("Words not found");
+                    println!("ignoring null value for {:?}", prefixword);
+                    vec![]
                 }
-                Err(e) => {
-                    println!("Couldn't query: {:?}", e);
+                Err(err) => {
+                    println!("ignoring an error {:?}", err);
+                    vec![]
                 }
             }
-        }
-    }
+        }).collect();
 
-
-    fn get_next_word(&self, id1: i64, id2: i64, pick: i64)
-        -> Result<Option<i64>> {
-        let mut pick_count: i64 = pick;
-        let mut stmt = try!(self.db.prepare(
-            "select freq, word3 from phrases where word1=? and word2=?"));
-        let rows = try!(stmt.query(&[&id1, &id2]));
-        for result_row in rows {
-            let row = try!(result_row);
-            let freq: i64 = row.get(0);
-            if pick_count <= freq {
-                return Ok(row.get::<Option<i64>>(1));
+        match self.get_pair_freq_where_filter(&filter) {
+            Ok(Some(freq)) => {
+                println!("Got frequency {}", freq);
+                let pick = random::<i64>().abs() % freq + 1;
+                let next = self.get_next_word_filter(&filter, pick)
+                    .expect("Error during query");
+                if let Some(word) = next {
+                    let spelling = self.get_spelling(word);
+                    println!("Found a word {:?}", spelling);
+                } else {
+                    println!("Found Null")
+                }
             }
-            pick_count -= freq;
+            Ok(None) => {
+                println!("Words not found");
+            }
+            Err(e) => {
+                println!("Couldn't query: {:?}", e);
+            }
         }
-        Ok(None)
     }
 
     fn get_pair_freq_where_filter(&self, filter: &Vec<NamedParam>) -> Result<Option<i64>> {
@@ -129,6 +121,36 @@ impl Baz {
 
         self.db.query_row(&sql, values.as_slice(),
             |row| row.get::<Option<i64>>(0))
+    }
+
+    fn get_next_word_filter(&self, prefix_filter: &Vec<NamedParam>, pick: i64)
+        -> Result<Option<i64>> {
+        let wheres = NamedParam::assigns(prefix_filter);
+        let values = NamedParam::values(prefix_filter);
+        // retrieve column based on how many words in prefix
+        let select_field_names = vec![ "word1", "word2", "word3" ];
+        let select_field = select_field_names[ prefix_filter.len() ];
+        let sql_where = if prefix_filter.is_empty() {
+            String::from("")
+        } else {
+            format!("where {}", wheres.join(&String::from(" and ")))
+        };
+        let sql = format!("select freq, {} from phrases {}", select_field, sql_where);
+
+        let mut pick_count: i64 = pick;
+        let mut stmt = try!(self.db.prepare(&sql));
+        println!("Find pick {} Running sql: {}", pick, sql);
+
+        let rows = try!(stmt.query(&values));
+        for result_row in rows {
+            let row = try!(result_row);
+            let freq: i64 = row.get(0);
+            if pick_count <= freq {
+                return Ok(row.get::<Option<i64>>(1));
+            }
+            pick_count -= freq;
+        }
+        Ok(None)
     }
 
 
@@ -149,11 +171,13 @@ impl Baz {
 
 #[cfg(test)]
 mod tests {
+    
     #[test]
     fn it_works() {
     }
     #[test]
     fn whatever() {
-        let c = establish_connection();
+        let c = super::Baz::new(":memory:".to_string());
+        c.summary()
     }
 }

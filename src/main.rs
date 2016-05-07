@@ -1,9 +1,13 @@
 extern crate baz;
 extern crate clap;
 extern crate dotenv;
-use clap::{App, SubCommand};
+use clap::{App, Arg, SubCommand, ArgMatches};
 
-
+fn cmd_complete(baz: &baz::Baz, matches: &ArgMatches) {
+    let prefix = matches.values_of_lossy("prefix").unwrap_or(vec![]);
+    println!("The prefix args: {:?}", prefix);
+    baz.complete(prefix);
+}
 
 fn main(){
     dotenv::dotenv().ok();
@@ -12,14 +16,18 @@ fn main(){
         .author("Joel Roller <roller@gmail.com>")
         .subcommand(SubCommand::with_name("summary")
             .about("Summarize database"))
+        .subcommand(SubCommand::with_name("complete")
+            .about("Run a markov chain starting with args")
+            .arg(Arg::with_name("prefix").multiple(true)))
         .after_help("\nReads configuration from environment or .env file:\n\
                      WORDS_DB=db/words.db    Location of sqlite words db")
         .get_matches();
 
     let baz = baz::Baz::new_from_env();
 
-    match bazargs.subcommand_name() {
-        Some("summary") => baz.summary(),
+    match bazargs.subcommand() {
+        ("summary", Some(_)) => baz.summary(),
+        ("complete", Some(subm)) => cmd_complete(&baz, subm),
         _ => {
             // Can't use App print_help because we
             // used get_matches instead.
