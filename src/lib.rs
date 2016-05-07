@@ -135,7 +135,14 @@ impl Baz {
         } else {
             format!("where {}", wheres.join(&String::from(" and ")))
         };
-        let sql = format!("select freq, {} from phrases {}", select_field, sql_where);
+        let sql = format!(
+            // note: this code was lightly tested, but it seems
+            //       that summing in sqlite engine is actually slower
+            //       than in rust
+            // "select sum(freq), {} from phrases {} group by {}",
+            // select_field, sql_where, select_field);
+            "select freq, {} from phrases {}",
+            select_field, sql_where);
 
         let mut pick_count: i64 = pick;
         let mut stmt = try!(self.db.prepare(&sql));
