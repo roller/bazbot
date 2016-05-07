@@ -100,6 +100,7 @@ impl Baz {
                 CREATE TABLE phrases (
                     word1 integer not null, word2 integer not null, word3 integer not null, freq integer
                 );
+                insert into words (word_id, spelling) values (0,'');
                 CREATE UNIQUE INDEX idx_words on words (word_id);
                 CREATE UNIQUE INDEX idx_spelling on words (spelling);
                 CREATE UNIQUE INDEX idx_phrases_u on phrases (word1,word2,word3);"

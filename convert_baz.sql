@@ -6,6 +6,8 @@ create table migrations ( m_id primary key );
 insert into migrations values ("init");
 
 create unique index idx_spelling on words (spelling);
+insert into words (word_id, spelling) values (0,'');
+
 
 CREATE TABLE phrases_no_null (
     word1 integer not null,
