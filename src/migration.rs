@@ -22,7 +22,10 @@ pub fn migrations() -> Vec<Migration> {
         m_sql: "
         CREATE TABLE words (word_id integer primary key autoincrement, spelling text not null);
         CREATE TABLE phrases (
-            word1 integer not null, word2 integer not null, word3 integer not null, freq integer
+            word1 integer not null, word2 integer not null, word3 integer not null, freq integer,
+            foreign key (word1) references words(word_id),
+            foreign key (word2) references words(word_id),
+            foreign key (word3) references words(word_id)
         );
         insert into words (word_id, spelling) values (0,'');
         CREATE UNIQUE INDEX idx_words on words (word_id);
