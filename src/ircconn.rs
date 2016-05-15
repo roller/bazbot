@@ -27,6 +27,10 @@ impl BazIrc {
         unimplemented!();
     }
     pub fn run(&self) {
-        unimplemented!();
+        let id = self.server.identify().unwrap();
+        println!("id: {:?}", id);
+        for message in self.server.iter() {
+            println!("Message: {:?}", message);
+        }
     }
 }
