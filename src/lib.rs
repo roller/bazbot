@@ -63,6 +63,16 @@ impl<'a> Iterator for ChainIter<'a> {
 }
 
 
+// join two vector phrases with spaces
+fn join_phrase(phrase1: Vec<String>, phrase2: Vec<String>) -> String {
+    phrase1.into_iter()
+        .chain(phrase2)
+        .filter(|x| !x.is_empty())
+        .collect::<Vec<_>>()
+        .as_slice()
+        .join(" ")
+}
+
 #[derive(Debug)]
 pub struct Baz {
     db: Connection
@@ -114,7 +124,7 @@ impl Baz {
         }
     }
 
-    pub fn complete_iter(&self, prefix_words: Vec<String>) -> ChainIter {
+    pub fn complete_iter(&self, prefix_words: &Vec<String>) -> ChainIter {
         let prefix_ints: Vec<i64> = prefix_words.iter().flat_map(|pword| {
             let res = self.get_word_id(&pword);
             match res {
@@ -135,7 +145,7 @@ impl Baz {
         }
     }
 
-    pub fn complete(&self, prefix: Vec<String> ) -> Result<Vec<String>> {
+    pub fn complete(&self, prefix: &Vec<String> ) -> Result<Vec<String>> {
         let words: Vec<Option<String>> =
             try!(self.complete_iter(prefix)
                      .map(|id| self.get_spelling(id))
@@ -144,8 +154,11 @@ impl Baz {
     }
 
     pub fn print_complete(&self, prefix: Vec<String> ) {
-        let result_words = self.complete(prefix);
-        println!("Result was {:?}", result_words);
+        let result_words = self.complete(&prefix);
+        match result_words {
+            Ok(words) => println!("baz: {}", join_phrase(prefix, words)),
+            Err(e) => println!("Uhoh: {:?}", e)
+        }
     }
 
     fn get_pair_freq_where_filter(&self, filter: &Vec<NamedParam>) -> Result<Option<i64>> {
