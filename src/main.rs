@@ -6,7 +6,7 @@ use clap::{App, Arg, SubCommand, ArgMatches};
 fn cmd_complete(baz: &baz::Baz, matches: &ArgMatches) {
     let prefix = matches.values_of_lossy("prefix").unwrap_or(vec![]);
     println!("The prefix args: {:?}", prefix);
-    baz.complete(prefix);
+    baz.print_complete(prefix);
 }
 
 fn cmd_migrate(baz: &baz::Baz, _matches: &ArgMatches) {

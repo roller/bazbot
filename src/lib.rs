@@ -28,6 +28,40 @@ impl<'a> NamedParam<'a> {
     }
 }
 
+pub struct ChainIter<'a> {
+    baz: &'a Baz,
+    prefix: Vec<i64>
+}
+
+impl<'a> ChainIter<'a> {
+    fn push(&mut self, n: i64){
+        // keep at most 2 elements on prefix
+        while self.prefix.len() > 1 {
+            self.prefix.remove(0);
+        }
+        self.prefix.push(n);
+    }
+}
+
+impl<'a> Iterator for ChainIter<'a> {
+    type Item = i64;
+    // TODO: Should this be a Option<Result<i64>> ?
+    fn next(&mut self) -> Option<i64> {
+        let res = self.baz.complete_int(self.prefix.as_slice());
+        match res {
+            Ok(Some(n)) => {
+                self.push(n);
+                Some(n)
+            },
+            Ok(None) => None,
+            Err(e) => {
+                println!("Ending early due to {:?}", e);
+                None
+            }
+        }
+    }
+}
+
 
 #[derive(Debug)]
 pub struct Baz {
@@ -66,15 +100,27 @@ impl Baz {
         migration::migrate(&self.db)
     }
 
-    pub fn complete(&self, prefix: Vec<String> ) {
+    pub fn complete_int(&self, prefix: &[i64]) -> Result<Option<i64>> {
         let fields: Vec<&str> = vec!["word1","word2"];
+        let filter: Vec<NamedParam> = fields.iter().zip(prefix).map(|(fname, pid)| {
+            NamedParam::new(&*fname, Box::new(*pid))
+        }).collect();
+        match self.get_pair_freq_where_filter(&filter) {
+            Ok(Some(freq)) => {
+                let pick = random::<i64>().abs() % freq + 1;
+                self.get_next_word_filter(&filter, pick)
+            }
+            result => result
+        }
+    }
 
-        let filter: Vec<NamedParam> = fields.iter().zip(prefix).flat_map(|(field_name, prefixword)| {
-            let res = self.get_word_id(&prefixword);
+    pub fn complete_iter(&self, prefix_words: Vec<String>) -> ChainIter {
+        let prefix_ints: Vec<i64> = prefix_words.iter().flat_map(|pword| {
+            let res = self.get_word_id(&pword);
             match res {
-                Ok(Some(word_id)) => vec![ NamedParam::new(&*field_name, Box::new(word_id)) ],
+                Ok(Some(word_id)) => vec![ word_id ],
                 Ok(None) => {
-                    println!("ignoring null value for {:?}", prefixword);
+                    println!("ignoring null value for {:?}", pword);
                     vec![]
                 }
                 Err(err) => {
@@ -83,27 +129,23 @@ impl Baz {
                 }
             }
         }).collect();
-
-        match self.get_pair_freq_where_filter(&filter) {
-            Ok(Some(freq)) => {
-                println!("Got frequency {}", freq);
-                let pick = random::<i64>().abs() % freq + 1;
-                let next = self.get_next_word_filter(&filter, pick)
-                    .expect("Error during query");
-                if let Some(word) = next {
-                    let spelling = self.get_spelling(word);
-                    println!("Found a word {:?}", spelling);
-                } else {
-                    println!("Found Null")
-                }
-            }
-            Ok(None) => {
-                println!("Words not found");
-            }
-            Err(e) => {
-                println!("Couldn't query: {:?}", e);
-            }
+        ChainIter {
+            baz: self,
+            prefix: prefix_ints
         }
+    }
+
+    pub fn complete(&self, prefix: Vec<String> ) -> Result<Vec<String>> {
+        let words: Vec<Option<String>> =
+            try!(self.complete_iter(prefix)
+                     .map(|id| self.get_spelling(id))
+                     .collect());
+        return Ok(words.into_iter().flat_map(|x| x).collect())
+    }
+
+    pub fn print_complete(&self, prefix: Vec<String> ) {
+        let result_words = self.complete(prefix);
+        println!("Result was {:?}", result_words);
     }
 
     fn get_pair_freq_where_filter(&self, filter: &Vec<NamedParam>) -> Result<Option<i64>> {
@@ -115,7 +157,6 @@ impl Baz {
             format!("where {}", wheres.join(&String::from(" and ")))
         };
         let sql = format!("select sum(freq) from phrases {}", sql_where);
-        println!("Running sql: {}", sql);
 
         self.db.query_row(&sql, values.as_slice(),
             |row| row.get::<Option<i64>>(0))
@@ -129,7 +170,7 @@ impl Baz {
         let select_field_names = vec![ "word1", "word2", "word3" ];
         let select_field = select_field_names[ prefix_filter.len() ];
         let sql_where = if prefix_filter.is_empty() {
-            String::from("")
+            "".to_string()
         } else {
             format!("where {}", wheres.join(&String::from(" and ")))
         };
@@ -144,7 +185,6 @@ impl Baz {
 
         let mut pick_count: i64 = pick;
         let mut stmt = try!(self.db.prepare(&sql));
-        println!("Find pick {} Running sql: {}", pick, sql);
 
         let rows = try!(stmt.query(&values));
         for result_row in rows {
