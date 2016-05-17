@@ -63,7 +63,7 @@ impl<'a> Iterator for ChainIter<'a> {
 }
 
 // join two vector phrases with spaces
-fn join_phrase(phrase1: Vec<String>, phrase2: Vec<String>) -> String {
+pub fn join_phrase(phrase1: Vec<String>, phrase2: Vec<String>) -> String {
     phrase1.into_iter()
         .chain(phrase2)
         .filter(|x| !x.is_empty())

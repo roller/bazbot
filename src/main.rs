@@ -3,7 +3,7 @@ extern crate clap;
 extern crate dotenv;
 use clap::{App, Arg, SubCommand, ArgMatches};
 use baz::markov_words::WordsDb;
-use baz::ircconn::BazIrc;
+use baz::ircconn::IrcConn;
 
 fn cmd_complete(baz: &WordsDb, matches: &ArgMatches) {
     let prefix = matches.values_of_lossy("prefix").unwrap_or(vec![]);
@@ -19,8 +19,8 @@ fn cmd_migrate(baz: &WordsDb, _matches: &ArgMatches) {
 fn cmd_irc(baz: WordsDb, matches: &ArgMatches) {
     let opt_config = matches.value_of_lossy("config");
     let irc = match opt_config {
-        Some(config) => BazIrc::new_from_config(baz, &config),
-        None => BazIrc::new_from_env(baz)
+        Some(config) => IrcConn::new_from_config(baz, &config),
+        None => IrcConn::new_from_env(baz)
     };
     irc.run()
 }
