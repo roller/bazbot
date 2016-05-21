@@ -1,6 +1,5 @@
 extern crate irc;
 use self::irc::client::prelude::*;
-// use std::io::Result;
 
 use markov_words;
 use markov_words::WordsDb;

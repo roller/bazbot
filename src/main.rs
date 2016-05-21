@@ -1,27 +1,27 @@
-extern crate baz;
+extern crate bazbot;
 extern crate clap;
 extern crate dotenv;
 extern crate env_logger;
 extern crate irc;
 use clap::{App, Arg, SubCommand, ArgMatches, AppSettings};
-use baz::markov_words::WordsDb;
-use baz::ircconn::IrcConn;
+use bazbot::markov_words::WordsDb;
+use bazbot::ircconn::IrcConn;
 use irc::client::data::config::Config;
 use std::env;
 
-fn cmd_complete(baz: &WordsDb, matches: &ArgMatches) {
+fn cmd_complete(words: &WordsDb, matches: &ArgMatches) {
     let prefix = matches.values_of_lossy("prefix").unwrap_or(vec![]);
     println!("Prefix: {:?}", prefix);
-    baz.print_complete(prefix);
+    words.print_complete(prefix);
 }
 
-fn cmd_migrate(baz: &WordsDb, _matches: &ArgMatches) {
-     let res = baz.migrate();
+fn cmd_migrate(words: &WordsDb, _matches: &ArgMatches) {
+     let res = words.migrate();
      println!("Migrate: {:?}", res);
  }
 
-fn cmd_irc(baz: WordsDb, config: Config) {
-    let irc = IrcConn::new_from_config(baz, config);
+fn cmd_irc(words: WordsDb, config: Config) {
+    let irc = IrcConn::new_from_config(words, config);
     irc.run()
 }
 
@@ -29,8 +29,8 @@ fn main(){
     dotenv::dotenv().ok();
     env_logger::init().unwrap();
 
-    let bazargs = App::new("BenzoBaz WordBot")
-        .version("0.1.3")
+    let bazargs = App::new("Bazbot Blabberbot")
+        .version("0.2.0")
         .author("Joel Roller <roller@gmail.com>")
         .arg(Arg::with_name("config")
             .short("c").long("config")
@@ -72,13 +72,13 @@ Environment
         .unwrap_or("bazbot.config".to_string());
     // let cfg = Config::load(&cfg_file).expect(&format!("Couldn't load config file {}", &cfg_file));
     let cfg = Config::load(&cfg_file);
-    let baz = WordsDb::from_config(&cfg.as_ref().ok());
+    let words = WordsDb::from_config(&cfg.as_ref().ok());
 
     match bazargs.subcommand() {
-        ("summary", Some(_)) => baz.summary(),
-        ("migrate", Some(subm)) => cmd_migrate(&baz, subm),
-        ("complete", Some(subm)) => cmd_complete(&baz, subm),
-        ("irc", Some(_)) => cmd_irc(baz, cfg.expect(&format!("Couldn't load config file {}", &cfg_file))),
+        ("summary", Some(_)) => words.summary(),
+        ("migrate", Some(subm)) => cmd_migrate(&words, subm),
+        ("complete", Some(subm)) => cmd_complete(&words, subm),
+        ("irc", Some(_)) => cmd_irc(words, cfg.expect(&format!("Couldn't load config file {}", &cfg_file))),
         _ => {
             // Can't use App print_help because we
             // used get_matches instead.
