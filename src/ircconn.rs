@@ -1,9 +1,9 @@
-
 extern crate irc;
 use self::irc::client::prelude::*;
+use std::io::Result;
+
 use markov_words;
 use markov_words::WordsDb;
-use std::io::Result;
 
 pub struct IrcConn {
     words: WordsDb,
@@ -31,11 +31,11 @@ impl IrcConn {
 
     pub fn run(&self) {
         let id = self.server.identify().unwrap();
-        println!("id: {:?}", id);
+        debug!("identified: {:?}", id);
         for message in self.server.iter() {
             match message {
                 Ok(ok_msg) => self.handle_message(&ok_msg),
-                Err(e) => println!("error: {:?}", e)
+                Err(e) => error!("error: {:?}", e)
             }
         }
     }
@@ -44,12 +44,13 @@ impl IrcConn {
         if let Some(ref prefix) = msg.prefix {
             let prefix_info = PrefixInfo::new(prefix);
             match msg.command {
+                Command::JOIN(ref channel, _, _) => info!("join channel {:?}", msg),
                 Command::PRIVMSG(ref target,ref text) => self.privmsg(&prefix_info, &target, &text),
-                _ => println!("ignore: {:?}", msg)
+                _ => debug!("ignore: {:?}", msg)
             }
         } else {
             // PING
-            println!("ignore no prefix: {:?}", msg);
+            debug!("ignore no prefix: {:?}", msg);
         }
     }
 
@@ -65,22 +66,22 @@ impl IrcConn {
             prefix_words
         };
 
-        println!("prefix_words: {:?}", prefix_words);
+        debug!("prefix_words: {:?}", prefix_words);
         let result_words = self.words.complete(&prefix_words);
         match result_words {
             Ok(words) => {
                 let response = markov_words::join_phrase(prefix_words, words);
                 let res = self.server.send_privmsg(target, &response);
                 if let Err(x) = res {
-                    println!("Uhoh sending msg: {:?}",x);
+                    error!("Uhoh sending msg: {:?}",x);
                 }
             }
-            Err(e) => println!("Uhoh: {:?}", e)
+            Err(e) => error!("Uhoh: {:?}", e)
         }
     }
 
     fn privmsg(&self, prefix: &PrefixInfo, target: &str, text: &str) {
-        println!("msg {:?} {} {}", prefix, target, text);
+        info!("msg {:?} {} {}", prefix, target, text);
         if text.split_whitespace().any(|x| x.starts_with("baz"))  {
             self.respond_to_name(prefix, target, text);
         }

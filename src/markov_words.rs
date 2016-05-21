@@ -55,7 +55,7 @@ impl<'a> Iterator for ChainIter<'a> {
             },
             Ok(None) => None,
             Err(e) => {
-                println!("Ending early due to {:?}", e);
+                warn!("Ending early due to {:?}", e);
                 None
             }
         }
@@ -80,7 +80,7 @@ pub struct WordsDb {
 
 impl WordsDb {
     pub fn new(db_url: String) -> WordsDb {
-        println!("Open db {}", db_url);
+        debug!("Open db {}", db_url);
         WordsDb {
             db: Connection::open(db_url)
                 .expect("Could not open database")
@@ -131,11 +131,11 @@ impl WordsDb {
             match res {
                 Ok(Some(word_id)) => vec![ word_id ],
                 Ok(None) => {
-                    println!("ignoring null value for {:?}", pword);
+                    warn!("ignoring null value for {:?}", pword);
                     vec![]
                 }
                 Err(err) => {
-                    println!("ignoring an error {:?}", err);
+                    error!("ignoring an error {:?}", err);
                     vec![]
                 }
             }

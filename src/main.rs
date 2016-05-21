@@ -1,6 +1,7 @@
 extern crate baz;
 extern crate clap;
 extern crate dotenv;
+extern crate env_logger;
 use clap::{App, Arg, SubCommand, ArgMatches};
 use baz::markov_words::WordsDb;
 use baz::ircconn::IrcConn;
@@ -27,6 +28,8 @@ fn cmd_irc(baz: WordsDb, matches: &ArgMatches) {
 
 fn main(){
     dotenv::dotenv().ok();
+    env_logger::init().unwrap();
+
     let bazargs = App::new("BenzoBaz WordBot")
         .version("0.1.1")
         .author("Joel Roller <roller@gmail.com>")
