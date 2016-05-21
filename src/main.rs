@@ -2,13 +2,16 @@ extern crate baz;
 extern crate clap;
 extern crate dotenv;
 extern crate env_logger;
-use clap::{App, Arg, SubCommand, ArgMatches};
+extern crate irc;
+use clap::{App, Arg, SubCommand, ArgMatches, AppSettings};
 use baz::markov_words::WordsDb;
 use baz::ircconn::IrcConn;
+use irc::client::data::config::Config;
+use std::env;
 
 fn cmd_complete(baz: &WordsDb, matches: &ArgMatches) {
     let prefix = matches.values_of_lossy("prefix").unwrap_or(vec![]);
-    println!("The prefix args: {:?}", prefix);
+    println!("Prefix: {:?}", prefix);
     baz.print_complete(prefix);
 }
 
@@ -17,12 +20,8 @@ fn cmd_migrate(baz: &WordsDb, _matches: &ArgMatches) {
      println!("Migrate: {:?}", res);
  }
 
-fn cmd_irc(baz: WordsDb, matches: &ArgMatches) {
-    let opt_config = matches.value_of_lossy("config");
-    let irc = match opt_config {
-        Some(config) => IrcConn::new_from_config(baz, &config),
-        None => IrcConn::new_from_env(baz)
-    };
+fn cmd_irc(baz: WordsDb, config: Config) {
+    let irc = IrcConn::new_from_config(baz, config);
     irc.run()
 }
 
@@ -31,8 +30,15 @@ fn main(){
     env_logger::init().unwrap();
 
     let bazargs = App::new("BenzoBaz WordBot")
-        .version("0.1.1")
+        .version("0.1.3")
         .author("Joel Roller <roller@gmail.com>")
+        .arg(Arg::with_name("config")
+            .short("c").long("config")
+            .takes_value(true)
+            .value_name("FILE.json")
+            .required(false)
+            .help("Read config from json file (defaults to env var BAZBOT_CONFIG or bazbot.config)."))
+        .setting(AppSettings::SubcommandRequired)
         .subcommand(SubCommand::with_name("summary")
             .about("Summarize database"))
         .subcommand(SubCommand::with_name("migrate")
@@ -41,19 +47,38 @@ fn main(){
             .about("Run a markov chain starting with args")
             .arg(Arg::with_name("prefix").multiple(true)))
         .subcommand(SubCommand::with_name("irc")
-            .about("Connect to irc server")
-            .arg(Arg::with_name("config")))
-        .after_help("\nReads configuration from environment or .env file:\n\
-                     WORDS_DB=db/words.db    Location of sqlite words db")
+            .about("Interact on irc channels"))
+        .after_help("
+Files:
+    bazbot.json
+        A valid config file is required to connect to irc.
+        Words db location may be configured as options.words, eg:
+            { \"options\": { \"words\": \"bazbot.db\" } }
+        See irc library documentation for more information:
+           https://github.com/aatxe/irc
+    bazbot.db
+        sqlite file with bazbot's brain
+
+Environment
+    Additional environment will be read from .env
+    RUST_LOG        - debug, info, warn, error
+    BAZBOT_CONFIG   - default json config file location
+    BAZBOT_WORDS    - default sqlite database location")
         .get_matches();
 
-    let baz = WordsDb::new_from_env();
+    let cfg_file: String = bazargs.value_of_lossy("config")
+        .and_then(|arg| Some(arg.to_string()))
+        .or_else(|| env::var("BAZBOT_CONFIG").ok())
+        .unwrap_or("bazbot.config".to_string());
+    // let cfg = Config::load(&cfg_file).expect(&format!("Couldn't load config file {}", &cfg_file));
+    let cfg = Config::load(&cfg_file);
+    let baz = WordsDb::from_config(&cfg.as_ref().ok());
 
     match bazargs.subcommand() {
         ("summary", Some(_)) => baz.summary(),
         ("migrate", Some(subm)) => cmd_migrate(&baz, subm),
         ("complete", Some(subm)) => cmd_complete(&baz, subm),
-        ("irc", Some(subm)) => cmd_irc(baz, subm),
+        ("irc", Some(_)) => cmd_irc(baz, cfg.expect(&format!("Couldn't load config file {}", &cfg_file))),
         _ => {
             // Can't use App print_help because we
             // used get_matches instead.

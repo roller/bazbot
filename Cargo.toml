@@ -1,7 +1,7 @@
 [package]
 name = "baz"
-version = "0.1.2"
-authors = ["Joel Roller <roller@snth.net>"]
+version = "0.1.3"
+authors = ["Joel Roller <roller@gmail.com>"]
 
 [dependencies]
 irc = "0.11.3"

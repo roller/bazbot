@@ -1,5 +1,6 @@
 extern crate rusqlite;
 extern crate rand;
+extern crate irc;
 
 #[macro_use]
 extern crate log;

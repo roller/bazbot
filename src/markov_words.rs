@@ -1,11 +1,13 @@
 extern crate rusqlite;
 extern crate rand;
+extern crate irc;
 
 use migration;
 use std::env;
 use rusqlite::{Result, Connection};
 use rusqlite::types::ToSql;
 use rand::random;
+use self::irc::client::data::config::Config;
 
 // utility construct to pass names names with values
 struct NamedParam<'a> {
@@ -29,7 +31,7 @@ impl<'a> NamedParam<'a> {
 }
 
 pub struct ChainIter<'a> {
-    baz: &'a WordsDb,
+    words: &'a WordsDb,
     prefix: Vec<i64>
 }
 
@@ -47,7 +49,7 @@ impl<'a> Iterator for ChainIter<'a> {
     type Item = i64;
     // TODO: Should this be a Option<Result<i64>> ?
     fn next(&mut self) -> Option<i64> {
-        let res = self.baz.complete_int(self.prefix.as_slice());
+        let res = self.words.complete_int(self.prefix.as_slice());
         match res {
             Ok(Some(n)) => {
                 self.push(n);
@@ -86,24 +88,35 @@ impl WordsDb {
                 .expect("Could not open database")
         }
     }
+    pub fn from_config(optconfig: &Option<&Config>) -> WordsDb {
+        let db_url: String = optconfig.as_ref()
+            .and_then(|cfg| cfg.options.as_ref())
+            .and_then(|opt| opt.get("words").and_then(|r| Some(r.clone())))
+            .or_else(|| -> Option<String> { env::var("BAZBOT_WORDS").ok() } )
+            .unwrap_or("bazbot.db".to_string());
+        WordsDb::new(db_url)
+    }
     pub fn new_from_env() -> WordsDb {
-        let db_url = env::var("WORDS_DB")
-            .expect("WORDS_DB must be set");
+        let db_url = env::var("BAZBOT_WORDS")
+            .expect("BAZBOT_WORDS must be set");
         WordsDb::new(db_url)
     }
     pub fn summary(&self) {
-        println!("This is the summary of {:?}", self);
-        if let Ok(words) = self.db.query_row(
-            "select count(*) from words", &[], |row| {
-                row.get::<i64>(0)
-            }) {
-            println!("Words: {}", words);
+        println!("Summary of {:?}", self);
+        let words = self.db.query_row(
+            "select count(*) from words", &[], |row| row.get::<i64>(0));
+        let phrases = self.db.query_row(
+            "select count(*) from phrases", &[], |row| row.get::<i64>(0));
+        match words.as_ref() {
+            Ok(words) => println!("Words: {}", words),
+            Err(e) => println!("Error counting words: {}", e)
         }
-        if let Ok(phrases) = self.db.query_row(
-            "select count(*) from phrases", &[], |row| {
-                row.get::<i64>(0)
-            }) {
-            println!("Phrases: {}", phrases);
+        match phrases.as_ref() {
+            Ok(phrases) => println!("Phrases: {}", phrases),
+            Err(e) => println!("Error counting phrases: {}", e)
+        }
+        if words.or(phrases).is_err(){
+            println!("Migration may be necessary, is this a valid database?");
         }
     }
 
@@ -141,7 +154,7 @@ impl WordsDb {
             }
         }).collect();
         ChainIter {
-            baz: self,
+            words: self,
             prefix: prefix_ints
         }
     }
