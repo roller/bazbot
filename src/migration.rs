@@ -97,7 +97,7 @@ impl<'a> Migrator<'a> {
     }
 
     fn run_migration(&self, migration: &Migration) -> Result<()> {
-        println!("run migration: {:?}", migration.m_id);
+        info!("run migration: {:?}", migration.m_id);
         try!(self.db.execute_batch(migration.m_sql));
         try!(self.db.execute(
             "insert into migrations (m_id) values (?)",

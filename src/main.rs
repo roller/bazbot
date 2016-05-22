@@ -22,15 +22,9 @@ fn cmd_read_phrases(words: &WordsDb, matches: &ArgMatches) {
 }
 
 fn cmd_complete(words: &WordsDb, matches: &ArgMatches) {
-    let prefix = matches.values_of_lossy("prefix").unwrap_or(vec![]);
-    println!("Prefix: {:?}", prefix);
+    let prefix = matches.values_of_lossy("prefix").unwrap_or(vec!["".to_string()]);
     words.print_complete(prefix);
 }
-
-fn cmd_migrate(words: &WordsDb, _matches: &ArgMatches) {
-     let res = words.migrate();
-     println!("Migrate: {:?}", res);
- }
 
 fn cmd_irc(words: WordsDb, config: Config) {
     let irc = IrcConn::new_from_config(words, config);
@@ -57,8 +51,6 @@ fn main(){
         .setting(AppSettings::SubcommandRequired)
         .subcommand(SubCommand::with_name("summary")
             .about("Summarize database"))
-        .subcommand(SubCommand::with_name("migrate")
-            .about("Create or sync database against current code"))
         .subcommand(SubCommand::with_name("complete")
             .about("Run a markov chain starting with args")
             .arg(Arg::with_name("prefix").multiple(true)))
@@ -95,10 +87,10 @@ Environment
     // let cfg = Config::load(&cfg_file).expect(&format!("Couldn't load config file {}", &cfg_file));
     let cfg = Config::load(&cfg_file);
     let words = WordsDb::from_config(&cfg.as_ref().ok());
+    words.migrate().expect("Database migration failed");
 
     match bazargs.subcommand() {
         ("summary", Some(_)) => words.summary(),
-        ("migrate", Some(subm)) => cmd_migrate(&words, subm),
         ("add", Some(subm)) => cmd_add_phrase(&words, subm),
         ("read", Some(subm)) => cmd_read_phrases(&words, subm),
         ("complete", Some(subm)) => cmd_complete(&words, subm),

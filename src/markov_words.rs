@@ -205,7 +205,7 @@ impl WordsDb {
     }
 
     // add line as a phrase, assuming string separated by whitespace
-    fn add_line(&self, line: &str) -> Result<()> {
+    pub fn add_line(&self, line: &str) -> Result<()> {
         let words: Vec<String> = line.split_whitespace().map(|s| s.to_string()).collect();
         self.add_phrase(words)
     }

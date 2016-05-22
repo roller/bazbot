@@ -80,6 +80,10 @@ impl IrcConn {
         info!("msg {:?} {} {}", prefix, target, text);
         if text.split_whitespace().any(|x| x.starts_with(self.server.current_nickname()))  {
             self.respond_to_name(target, text);
+        } else {
+            if let Err(e) = self.words.add_line(&text) {
+                error!("Error adding line: {}", e);
+            }
         }
     }
 
