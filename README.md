@@ -47,6 +47,20 @@ Environment
     BAZBOT_WORDS    - default sqlite database location
 ```
 
+Example minimum `bazbot.json` config file:
+
+``` json
+{
+    "nickname": "bazbot",
+    "server": "localhost",
+    "port": 6667,
+    "channels": ["#testbazbot"],
+    "options": {
+        "words": "bazbot.db"
+    }
+}
+```
+
 # History
 
 Bazbot was inspired by the benzo irc bot[2] named baz.
