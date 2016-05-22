@@ -181,33 +181,23 @@ impl WordsDb {
         let v2 = v.iter().skip(1);
         let v3 = v.iter().skip(2);
         for ((w1,w2),w3) in v1.zip(v2).zip(v3) {
-            try!(self.increment_frequency(vec![w1,w2,w3]));
+            try!(self.increment_frequency(&[w1,w2,w3]));
         }
         Ok(())
     }
 
-    fn increment_frequency(&self, words: Vec<&ToSql>) -> Result<i32> {
-        let sql = "select freq from phrases where word1=? and word2=? and word3=?";
-        // let params: Vec<&ToSql> = words.iter().map(|x| &*x).collect()
-        let res = self.db.query_row(&sql, words.as_slice(),
+    fn increment_frequency(&self, words: &[&ToSql]) -> Result<i32> {
+        let sql = "select 1 from phrases where word1=? and word2=? and word3=?;";
+        let res = self.db.query_row(&sql, words,
             |row| row.get::<i64>(0));
         match res {
             Err(Error::QueryReturnedNoRows) => {
-                let freq = 1;
-                let mut params: Vec<&ToSql> = Vec::with_capacity(1 + words.len());
-                params.push(&freq);
-                params.extend_from_slice(words.as_slice());
-                let sql = "insert into phrases (freq, word1, word2, word3) values (?,?,?,?);";
-                self.db.execute(sql, params.as_slice())
+                let sql = "insert into phrases (freq, word1, word2, word3) values (1,?,?,?);";
+                self.db.execute(sql, words)
             },
-            Ok(freq) => {
-                let freq = freq + 1;
-                let mut params: Vec<&ToSql> = Vec::with_capacity(1 + words.len());
-                params.push(&freq);
-                params.extend_from_slice(words.as_slice());
-                // let params: Vec<&ToSql> = vec![freq+1].into_iter().chain(words).collect();
-                let sql = "update phrases set freq=? where word1=? and word2=? and word3=?";
-                self.db.execute(sql, params.as_slice())
+            Ok(_) => {
+                let sql = "update phrases set freq=freq+1 where word1=? and word2=? and word3=?;";
+                self.db.execute(sql, words)
             },
             Err(e) => Err(e)
         }

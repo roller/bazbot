@@ -10,7 +10,7 @@ insert into words (word_id, spelling) values (0,'');
 
 
 CREATE TABLE phrases_no_null (
-    word1 integer not null, word2 integer not null, word3 integer not null, freq integer,
+    word1 integer not null, word2 integer not null, word3 integer not null, freq integer not null,
     foreign key (word1) references words(word_id),
     foreign key (word2) references words(word_id),
     foreign key (word3) references words(word_id)
@@ -19,7 +19,7 @@ CREATE UNIQUE INDEX idx_phrases_u on phrases_no_null (word1,word2,word3);
 
 insert into phrases_no_null 
 select word1, word2, word3, freq from phrases
-where word1 is not null and word2 is not null and word3 is not null;
+where word1 is not null and word2 is not null and word3 is not null and freq is not null;
 
 -- zero word1
 insert into phrases_no_null
