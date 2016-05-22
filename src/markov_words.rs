@@ -4,7 +4,7 @@ extern crate irc;
 
 use migration;
 use std::env;
-use rusqlite::{Result, Connection};
+use rusqlite::{Result, Connection,Error};
 use rusqlite::types::ToSql;
 use rand::random;
 use self::irc::client::data::config::Config;
@@ -124,7 +124,7 @@ impl WordsDb {
         migration::migrate(&self.db)
     }
 
-    pub fn complete_int(&self, prefix: &[i64]) -> Result<Option<i64>> {
+    fn complete_int(&self, prefix: &[i64]) -> Result<Option<i64>> {
         let fields: Vec<&str> = vec!["word1","word2"];
         let filter: Vec<NamedParam> = fields.iter().zip(prefix).map(|(fname, pid)| {
             NamedParam::new(&*fname, Box::new(*pid))
@@ -173,6 +173,52 @@ impl WordsDb {
             Ok(words) => println!("baz: {}", join_phrase(prefix, words)),
             Err(e) => println!("Uhoh: {:?}", e)
         }
+    }
+
+    pub fn add_phrase(&self, phrase: Vec<String> ) -> Result<()> {
+        let v = try!(self.get_phrase_vec(phrase));
+        let v1 = v.iter();
+        let v2 = v.iter().skip(1);
+        let v3 = v.iter().skip(2);
+        for ((w1,w2),w3) in v1.zip(v2).zip(v3) {
+            try!(self.increment_frequency(vec![w1,w2,w3]));
+        }
+        Ok(())
+    }
+
+    fn increment_frequency(&self, words: Vec<&ToSql>) -> Result<i32> {
+        let sql = "select freq from phrases where word1=? and word2=? and word3=?";
+        // let params: Vec<&ToSql> = words.iter().map(|x| &*x).collect()
+        let res = self.db.query_row(&sql, words.as_slice(),
+            |row| row.get::<i64>(0));
+        match res {
+            Err(Error::QueryReturnedNoRows) => {
+                let freq = 1;
+                let mut params: Vec<&ToSql> = Vec::with_capacity(1 + words.len());
+                params.push(&freq);
+                params.extend_from_slice(words.as_slice());
+                let sql = "insert into phrases (freq, word1, word2, word3) values (?,?,?,?);";
+                self.db.execute(sql, params.as_slice())
+            },
+            Ok(freq) => {
+                let freq = freq + 1;
+                let mut params: Vec<&ToSql> = Vec::with_capacity(1 + words.len());
+                params.push(&freq);
+                params.extend_from_slice(words.as_slice());
+                // let params: Vec<&ToSql> = vec![freq+1].into_iter().chain(words).collect();
+                let sql = "update phrases set freq=? where word1=? and word2=? and word3=?";
+                self.db.execute(sql, params.as_slice())
+            },
+            Err(e) => Err(e)
+        }
+    }
+
+    // lookup word ids and surround with begin/end 0s
+    fn get_phrase_vec(&self, phrase: Vec<String>) -> Result<Vec<i64>> {
+        let result: Vec<i64> = try!(phrase.iter().map(
+            |w| self.get_or_add_word_id(w))
+            .collect());
+        Ok(vec![0].into_iter().chain(result.into_iter()).chain(vec![0].into_iter()).collect())
     }
 
     fn get_pair_freq_where_filter(&self, filter: &Vec<NamedParam>) -> Result<Option<i64>> {
@@ -225,6 +271,17 @@ impl WordsDb {
         Ok(None)
     }
 
+    fn get_or_add_word_id(&self, spelling: &str) -> Result<i64> {
+        let res = self.get_word_id(spelling);
+        match res {
+            Ok(None) | Err(Error::QueryReturnedNoRows) => {
+                try!(self.db.execute("insert into words (spelling) values (?)", &[&spelling]));
+                Ok(self.db.last_insert_rowid())
+            },
+            Ok(Some(word_id)) => Ok(word_id),
+            Err(e) => Err(e)
+        }
+    }
 
     fn get_word_id(&self, spelling: &str) -> Result<Option<i64>> {
         self.db.query_row(

@@ -9,6 +9,11 @@ use bazbot::ircconn::IrcConn;
 use irc::client::data::config::Config;
 use std::env;
 
+fn cmd_add_phrase(words: &WordsDb, matches: &ArgMatches) {
+    let phrase = matches.values_of_lossy("words").unwrap_or(vec![]);
+    words.add_phrase(phrase).expect("failed");
+}
+
 fn cmd_complete(words: &WordsDb, matches: &ArgMatches) {
     let prefix = matches.values_of_lossy("prefix").unwrap_or(vec![]);
     println!("Prefix: {:?}", prefix);
@@ -46,6 +51,11 @@ fn main(){
         .subcommand(SubCommand::with_name("complete")
             .about("Run a markov chain starting with args")
             .arg(Arg::with_name("prefix").multiple(true)))
+        .subcommand(SubCommand::with_name("add")
+            .about("Add a phrase to the markov words database")
+            .arg(Arg::with_name("words").multiple(true)))
+        .subcommand(SubCommand::with_name("read")
+            .about("Read text file with phrases into markov database"))
         .subcommand(SubCommand::with_name("irc")
             .about("Interact on irc channels"))
         .after_help("
@@ -77,6 +87,8 @@ Environment
     match bazargs.subcommand() {
         ("summary", Some(_)) => words.summary(),
         ("migrate", Some(subm)) => cmd_migrate(&words, subm),
+        ("add", Some(subm)) => cmd_add_phrase(&words, subm),
+        ("read", Some(_subm)) => unimplemented!(),
         ("complete", Some(subm)) => cmd_complete(&words, subm),
         ("irc", Some(_)) => cmd_irc(words, cfg.expect(&format!("Couldn't load config file {}", &cfg_file))),
         _ => {
