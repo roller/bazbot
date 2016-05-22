@@ -28,7 +28,7 @@ FLAGS:
 
 OPTIONS:
     -c, --config <FILE.json>    Read config from json file (defaults to env var
-                                BAZBOT_CONFIG or bazbot.config).
+                                BAZBOT_CONFIG or bazbot.json).
 
 SUBCOMMANDS:
     add         Add a phrase to the markov words database

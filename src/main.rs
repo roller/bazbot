@@ -32,7 +32,7 @@ fn cmd_irc(words: WordsDb, config: Config) {
 }
 
 fn main(){
-    dotenv::dotenv().unwrap();
+    dotenv::dotenv().ok();
     // log info level by default
     if env::var("RUST_LOG").is_err() {
         env::set_var("RUST_LOG", "info");
@@ -40,14 +40,14 @@ fn main(){
     env_logger::init().unwrap();
 
     let bazargs = App::new("Bazbot Blabberbot")
-        .version("0.2.0")
+        .version("0.2.1")
         .author("Joel Roller <roller@gmail.com>")
         .arg(Arg::with_name("config")
             .short("c").long("config")
             .takes_value(true)
             .value_name("FILE.json")
             .required(false)
-            .help("Read config from json file (defaults to env var BAZBOT_CONFIG or bazbot.config)."))
+            .help("Read config from json file (defaults to env var BAZBOT_CONFIG or bazbot.json)."))
         .setting(AppSettings::SubcommandRequired)
         .subcommand(SubCommand::with_name("summary")
             .about("Summarize database"))
@@ -83,7 +83,7 @@ Environment
     let cfg_file: String = bazargs.value_of_lossy("config")
         .and_then(|arg| Some(arg.to_string()))
         .or_else(|| env::var("BAZBOT_CONFIG").ok())
-        .unwrap_or("bazbot.config".to_string());
+        .unwrap_or("bazbot.json".to_string());
     // let cfg = Config::load(&cfg_file).expect(&format!("Couldn't load config file {}", &cfg_file));
     let cfg = Config::load(&cfg_file);
     let words = WordsDb::from_config(&cfg.as_ref().ok());
