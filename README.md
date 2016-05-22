@@ -5,7 +5,7 @@ An irc bot that generates markov chain phrases.
 
 # Purpose
 
-This is a rust programming language[1] learning project.  It is not intended a
+This is a [rust programming language][1] learning project.  It is not intended a
 demonstration of good code quality or best practices.  Feedback is welcome.
 
 # Installation
@@ -73,7 +73,7 @@ Example minimum `bazbot.json` config file:
 
 # History
 
-Bazbot was inspired by the benzo irc bot[2] named baz.
+Bazbot was inspired by the [benzo irc bot][2] named baz.
 
 [1]: https://www.rust-lang.org/
 [2]: http://benzo.sourceforge.net/
