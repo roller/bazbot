@@ -10,11 +10,15 @@ demonstration of good code quality or best practices.  Feedback is welcome.
 
 # Installation
 
-Sorry, there's no installer.  Get rust and build with cargo.
+Sorry, there's no installer.  [Rust up][2] and build with cargo.
 
 ```
 cargo build --release
 ```
+
+One dependency not handled by cargo is the openssl library.  See the
+[rust-openssl][3] project for information on compiling for your platform.
+
 
 # Usage
 
@@ -73,7 +77,9 @@ Example minimum `bazbot.json` config file:
 
 # History
 
-Bazbot was inspired by the [benzo irc bot][2] named baz.
+Bazbot was inspired by the [benzo irc bot][4] named baz.
 
 [1]: https://www.rust-lang.org/
-[2]: http://benzo.sourceforge.net/
+[2]: https://www.rustup.rs/
+[3]: https://github.com/sfackler/rust-openssl
+[4]: http://benzo.sourceforge.net/
