@@ -5,3 +5,4 @@ Cargo.lock
 bazbot*.db
 bazbot*.json
 db/*
+tmp/*

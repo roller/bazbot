@@ -14,6 +14,13 @@ fn cmd_add_phrase(words: &WordsDb, matches: &ArgMatches) {
     words.add_phrase(phrase).expect("failed");
 }
 
+fn cmd_read_phrases(words: &WordsDb, matches: &ArgMatches) {
+    let files = matches.values_of_lossy("files").unwrap_or(vec![]);
+    for file in files {
+        words.read_file(file).expect("couldn't read file");
+    }
+}
+
 fn cmd_complete(words: &WordsDb, matches: &ArgMatches) {
     let prefix = matches.values_of_lossy("prefix").unwrap_or(vec![]);
     println!("Prefix: {:?}", prefix);
@@ -31,7 +38,11 @@ fn cmd_irc(words: WordsDb, config: Config) {
 }
 
 fn main(){
-    dotenv::dotenv().ok();
+    dotenv::dotenv().unwrap();
+    // log info level by default
+    if env::var("RUST_LOG").is_err() {
+        env::set_var("RUST_LOG", "info");
+    }
     env_logger::init().unwrap();
 
     let bazargs = App::new("Bazbot Blabberbot")
@@ -55,7 +66,8 @@ fn main(){
             .about("Add a phrase to the markov words database")
             .arg(Arg::with_name("words").multiple(true)))
         .subcommand(SubCommand::with_name("read")
-            .about("Read text file with phrases into markov database"))
+            .about("Read text file with one phrase per line into markov database")
+            .arg(Arg::with_name("files").multiple(true).value_name("file.txt")))
         .subcommand(SubCommand::with_name("irc")
             .about("Interact on irc channels"))
         .after_help("
@@ -71,7 +83,7 @@ Files:
 
 Environment
     Additional environment will be read from .env
-    RUST_LOG        - debug, info, warn, error
+    RUST_LOG        - debug, info, warn, error (default info)
     BAZBOT_CONFIG   - default json config file location
     BAZBOT_WORDS    - default sqlite database location")
         .get_matches();
@@ -88,7 +100,7 @@ Environment
         ("summary", Some(_)) => words.summary(),
         ("migrate", Some(subm)) => cmd_migrate(&words, subm),
         ("add", Some(subm)) => cmd_add_phrase(&words, subm),
-        ("read", Some(_subm)) => unimplemented!(),
+        ("read", Some(subm)) => cmd_read_phrases(&words, subm),
         ("complete", Some(subm)) => cmd_complete(&words, subm),
         ("irc", Some(_)) => cmd_irc(words, cfg.expect(&format!("Couldn't load config file {}", &cfg_file))),
         _ => {

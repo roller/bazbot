@@ -3,7 +3,8 @@ extern crate rand;
 extern crate irc;
 
 use migration;
-use std::env;
+use std::{env,fs};
+use std::io::{BufRead,BufReader};
 use rusqlite::{Result, Connection,Error};
 use rusqlite::types::ToSql;
 use rand::random;
@@ -173,6 +174,40 @@ impl WordsDb {
             Ok(words) => println!("baz: {}", join_phrase(prefix, words)),
             Err(e) => println!("Uhoh: {:?}", e)
         }
+    }
+
+    pub fn read_file(&self, filename: String) -> Result<()> {
+        let res = fs::File::open(&filename);
+        let mut lines = 0;
+        match res {
+            Ok(file) => {
+                debug!("file: {:?}", file);
+                let tx = try!(self.db.transaction());
+                let bufread = BufReader::new(&file);
+                for line_res in bufread.lines() {
+                    match line_res {
+                        Ok(line) => {
+                            try!(self.add_line(&line));
+                            lines += 1;
+                            if lines % 1000 == 0 {
+                                debug!("Added {} lines", lines);
+                            }
+                        }
+                        Err(e) => warn!("skipping: {:?}", e)
+                    }
+                }
+                try!(tx.commit());
+            }
+            Err(err) => error!("err: {:?}", err)
+        }
+        info!("Added {} lines from {}", lines, filename);
+        Ok(())
+    }
+
+    // add line as a phrase, assuming string separated by whitespace
+    fn add_line(&self, line: &str) -> Result<()> {
+        let words: Vec<String> = line.split_whitespace().map(|s| s.to_string()).collect();
+        self.add_phrase(words)
     }
 
     pub fn add_phrase(&self, phrase: Vec<String> ) -> Result<()> {

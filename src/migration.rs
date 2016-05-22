@@ -31,8 +31,18 @@ pub fn migrations() -> Vec<Migration> {
         CREATE UNIQUE INDEX idx_words on words (word_id);
         CREATE UNIQUE INDEX idx_spelling on words (spelling);
         CREATE UNIQUE INDEX idx_phrases_u on phrases (word1,word2,word3);"
-    }
-    ]
+    },
+    Migration {
+        m_id: "phrases_spelling_view",
+        m_sql: "
+        create view phrases_spelling as
+        select w1.spelling as word1, w2.spelling as word2, w3.spelling as word3, freq
+        from phrases
+        inner join words w1 on phrases.word1 = w1.word_id
+        inner join words w2 on phrases.word2 = w2.word_id
+        inner join words w3 on phrases.word3 = w3.word_id;
+        "
+    }]
 }
 
 pub fn migrate<'a>(db: &'a Connection) -> Result<()> {
