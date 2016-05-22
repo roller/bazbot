@@ -8,6 +8,14 @@ An irc bot that generates markov chain phrases.
 This is a rust programming language[1] learning project.  It is not intended a
 demonstration of good code quality or best practices.  Feedback is welcome.
 
+# Installation
+
+Sorry, there's no installer.  Get rust and build with cargo.
+
+```
+cargo build --release
+```
+
 # Usage
 
 ```
@@ -23,11 +31,13 @@ OPTIONS:
                                 BAZBOT_CONFIG or bazbot.config).
 
 SUBCOMMANDS:
+    add         Add a phrase to the markov words database
     complete    Run a markov chain starting with args
     help        Prints this message or the help message of the given
                 subcommand(s)
     irc         Interact on irc channels
-    migrate     Create or sync database against current code
+    read        Read text file with one phrase per line into markov
+                database
     summary     Summarize database
 
 Files:
@@ -42,7 +52,7 @@ Files:
 
 Environment
     Additional environment will be read from .env
-    RUST_LOG        - debug, info, warn, error
+    RUST_LOG        - debug, info, warn, error (default info)
     BAZBOT_CONFIG   - default json config file location
     BAZBOT_WORDS    - default sqlite database location
 ```
@@ -64,12 +74,6 @@ Example minimum `bazbot.json` config file:
 # History
 
 Bazbot was inspired by the benzo irc bot[2] named baz.
-
-# Contributing
-
-Contributions to this library would be immensely appreciated. It should be
-noted that as this is a public domain project, any contributions will thus be
-released into the public domain as well.
 
 [1]: https://www.rust-lang.org/
 [2]: http://benzo.sourceforge.net/
