@@ -50,23 +50,12 @@ impl IrcConn {
         }
     }
 
-    fn respond_to_name(&self, target: &str, text: &str) {
-        let prefix_words: Vec<String> = text.split_whitespace()
-            .take_while(|x| !x.starts_with(self.server.current_nickname()))
-            .take(2)
-            .map(|x| x.to_owned())
-            .collect();
-        let prefix_words = if prefix_words.len() == 0 {
-            vec!["".to_owned()] // begin phrase sentinel
-        } else {
-            prefix_words
-        };
-
-        debug!("prefix_words: {:?}", prefix_words);
-        let result_words = self.words.complete(&prefix_words);
+    fn respond_to_name(&self, target: &str, surround: &Vec<&str>) {
+        debug!("surround words: {:?}", surround);
+        let result_words = self.words.complete_middle_out(surround);
         match result_words {
             Ok(words) => {
-                let response = markov_words::join_phrase(prefix_words, words);
+                let response = markov_words::join_phrase(vec![], words);
                 let res = self.server.send_privmsg(target, &response);
                 if let Err(x) = res {
                     error!("Uhoh sending msg: {:?}",x);
@@ -78,10 +67,12 @@ impl IrcConn {
 
     fn privmsg(&self, prefix: &PrefixInfo, target: &str, text: &str) {
         info!("msg {:?} {} {}", prefix, target, text);
-        if text.split_whitespace().any(|x| x.starts_with(self.server.current_nickname()))  {
-            self.respond_to_name(target, text);
+        let phrase = markov_words::tokenize_phrase(text);
+        if let Some(surround) = markov_words::find_match_surround(self.server.current_nickname(), &phrase) {
+            self.respond_to_name(target, &surround);
         } else {
-            if let Err(e) = self.words.add_line(&text) {
+            let owned_phrase = phrase.iter().map(|s| s.to_string()).collect();
+            if let Err(e) = self.words.add_phrase(owned_phrase) {
                 error!("Error adding line: {}", e);
             }
         }

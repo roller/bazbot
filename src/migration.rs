@@ -42,6 +42,12 @@ pub fn migrations() -> Vec<Migration> {
         inner join words w2 on phrases.word2 = w2.word_id
         inner join words w3 on phrases.word3 = w3.word_id;
         "
+    },
+    Migration {
+        m_id: "idx_phrases_backward",
+        // leave out the middle search index because it's only called
+        // once per completion, and can leverage idx_phrases_u
+        m_sql: "create index idx_phrases_backward on phrases(word3, word2);"
     }]
 }
 

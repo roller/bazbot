@@ -22,7 +22,7 @@ fn cmd_read_phrases(words: &WordsDb, matches: &ArgMatches) {
 }
 
 fn cmd_complete(words: &WordsDb, matches: &ArgMatches) {
-    let prefix = matches.values_of_lossy("prefix").unwrap_or(vec!["".to_string()]);
+    let prefix = matches.values_of_lossy("prefix").unwrap_or(vec![]);
     words.print_complete(prefix);
 }
 
@@ -40,8 +40,7 @@ fn main(){
     env_logger::init().unwrap();
 
     let bazargs = App::new("Bazbot Blabberbot")
-        .version("0.2.1")
-        .author("Joel Roller <roller@gmail.com>")
+        .version("0.2.2")
         .arg(Arg::with_name("config")
             .short("c").long("config")
             .takes_value(true)
@@ -52,7 +51,7 @@ fn main(){
         .subcommand(SubCommand::with_name("summary")
             .about("Summarize database"))
         .subcommand(SubCommand::with_name("complete")
-            .about("Run a markov chain starting with args")
+            .about("Run a markov chain matching args around _")
             .arg(Arg::with_name("prefix").multiple(true)))
         .subcommand(SubCommand::with_name("add")
             .about("Add a phrase to the markov words database")
