@@ -26,8 +26,8 @@ impl IrcConn {
     }
 
     pub fn run(&self) {
-        let id = self.server.identify().unwrap();
-        debug!("identified: {:?}", id);
+        self.server.identify().unwrap();
+        debug!("identified.");
         for message in self.server.iter() {
             match message {
                 Ok(ok_msg) => self.handle_message(&ok_msg),
@@ -41,7 +41,7 @@ impl IrcConn {
             let prefix_info = PrefixInfo::new(prefix);
             match msg.command {
                 Command::JOIN(_, _, _) => info!("join channel {:?}", msg),
-                Command::PRIVMSG(ref target,ref text) => self.privmsg(&prefix_info, &target, &text),
+                Command::PRIVMSG(ref target,ref text) => self.privmsg(&prefix_info, target, text),
                 _ => debug!("ignore: {:?}", msg)
             }
         } else {
@@ -50,7 +50,7 @@ impl IrcConn {
         }
     }
 
-    fn respond_to_name(&self, target: &str, surround: &Vec<&str>) {
+    fn respond_to_name(&self, target: &str, surround: &[&str]) {
         debug!("surround words: {:?}", surround);
         let result_words = self.words.complete_middle_out(surround);
         match result_words {
@@ -93,10 +93,10 @@ struct PrefixInfo<'a> {
 impl<'a> PrefixInfo<'a> {
     // yeah, no idea how to parse things
     fn new(s: &'a str) -> PrefixInfo<'a> {
-        let mut name_host = s.splitn(2,"@");
+        let mut name_host = s.splitn(2,'@');
         let name = name_host.next().unwrap_or("");
         let host = name_host.next();
-        let mut name_user = name.splitn(2,"!");
+        let mut name_user = name.splitn(2,'!');
         PrefixInfo {
             name: name_user.next().unwrap_or(""),
             user: name_user.next(),

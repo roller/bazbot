@@ -9,6 +9,8 @@ use bazbot::ircconn::IrcConn;
 use irc::client::data::config::Config;
 use std::env;
 
+const VERSION: Option<&'static str> = option_env!("CARGO_PKG_VERSION");
+
 fn cmd_add_phrase(words: &WordsDb, matches: &ArgMatches) {
     let phrase = matches.values_of_lossy("words").unwrap_or(vec![]);
     words.add_phrase(phrase).expect("failed");
@@ -40,7 +42,7 @@ fn main(){
     env_logger::init().unwrap();
 
     let bazargs = App::new("Bazbot Blabberbot")
-        .version("0.2.2")
+        .version(VERSION.unwrap_or("v0"))
         .arg(Arg::with_name("config")
             .short("c").long("config")
             .takes_value(true)

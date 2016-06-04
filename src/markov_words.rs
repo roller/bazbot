@@ -11,17 +11,17 @@ use rand::random;
 use self::irc::client::data::config::Config;
 
 enum WordField {
-    Word1,
-    Word2,
-    Word3,
+    One,
+    Two,
+    Three,
 }
 
 impl WordField {
-    fn to_str(self) -> &'static str {
-        match self {
-            WordField::Word1 => "word1",
-            WordField::Word2 => "word2",
-            WordField::Word3 => "word3"
+    fn to_str(&self) -> &'static str {
+        match *self {
+            WordField::One => "word1",
+            WordField::Two => "word2",
+            WordField::Three => "word3"
         }
     }
 }
@@ -39,10 +39,10 @@ impl<'a> NamedParam<'a> {
             value: value
         }
     }
-    fn assigns(params: &Vec<NamedParam>) -> Vec<String> {
+    fn assigns(params: &[NamedParam]) -> Vec<String> {
         params.iter().map(|w| { format!("{}=?", w.field) }).collect()
     }
-    fn values(params: &'a Vec<NamedParam>) -> Vec<&'a ToSql> {
+    fn values(params: &'a [NamedParam]) -> Vec<&'a ToSql> {
         params.iter().map(|w| &*w.value).collect()
     }
 }
@@ -125,8 +125,8 @@ fn into_result<T>(opt_result: Option<Result<Option<T>>>) -> Result<Option<T>> {
 }
 
 // reverse take n
-fn last_n<T: Copy>(vec: &Vec<T>, limit: usize) -> Vec<T> {
-    vec.iter().rev().take(limit).map(|x| *x).collect::<Vec<T>>()
+fn last_n<T: Copy>(vec: &[T], limit: usize) -> Vec<T> {
+    vec.iter().rev().take(limit).cloned().collect::<Vec<T>>()
         .into_iter().rev().collect::<Vec<T>>()
 }
 
@@ -137,7 +137,7 @@ pub fn tokenize_phrase(phrase: &str) -> Vec<&str> {
 }
 
 // if needle is found, return a vec containing surrounding words
-pub fn find_match_surround<'a>(needle: &str, haystack: &Vec<&'a str>) -> Option<Vec<&'a str>> {
+pub fn find_match_surround<'a>(needle: &str, haystack: &[&'a str]) -> Option<Vec<&'a str>> {
     let lower_needle = needle.to_lowercase();
     // add begin/end framing
     let framed: Vec<&str> = vec![""].into_iter()
@@ -206,11 +206,11 @@ impl WordsDb {
         migration::migrate(&self.db)
     }
 
-    fn complete_any(&self, select_field: &str,  filter: &Vec<NamedParam>) -> Result<Option<i64>> {
-        match self.get_freq_where(&filter) {
+    fn complete_any(&self, select_field: &str,  filter: &[NamedParam]) -> Result<Option<i64>> {
+        match self.get_freq_where(filter) {
             Ok(Some(freq)) => {
                 let pick = random::<i64>().abs() % freq + 1;
-                self.get_next_word_filter(select_field, &filter, pick)
+                self.get_next_word_filter(select_field, filter, pick)
             }
             result => result
         }
@@ -218,9 +218,9 @@ impl WordsDb {
 
     // collect a vector of ids, errors and nulls looking up words are ignored
     // This does not add new words so is only appropriate for feeding completion
-    pub fn complete_id_vec(&self, prefix_words: &Vec<&str>) -> Vec<i64> {
+    pub fn complete_id_vec(&self, prefix_words: &[&str]) -> Vec<i64> {
         prefix_words.iter().flat_map(|pword| {
-            let res = self.get_word_id(&pword);
+            let res = self.get_word_id(pword);
             match res {
                 Ok(Some(word_id)) => vec![ word_id ],
                 Ok(None) => {
@@ -235,7 +235,7 @@ impl WordsDb {
         }).collect()
     }
 
-    fn complete_ids<'a>(&'a self, filter1: WordField, filter2: WordField, filter3: WordField, filter_values: Vec<i64>) -> ChainIter {
+    fn complete_ids(&self, filter1: WordField, filter2: WordField, filter3: WordField, filter_values: Vec<i64>) -> ChainIter {
         ChainIter {
             words: self,
             filter_fields: vec![filter1.to_str(), filter2.to_str(), filter3.to_str()],
@@ -244,14 +244,14 @@ impl WordsDb {
         }
     }
 
-    fn complete_forward<'a>(&'a self, filter_values: Vec<i64>) -> ChainIter {
-        self.complete_ids(WordField::Word1, WordField::Word2, WordField::Word3, filter_values)
+    fn complete_forward(&self, filter_values: Vec<i64>) -> ChainIter {
+        self.complete_ids(WordField::One, WordField::Two, WordField::Three, filter_values)
     }
-    fn complete_backward<'a>(&'a self, filter_values: Vec<i64>) -> ChainIter {
-        self.complete_ids(WordField::Word3, WordField::Word2, WordField::Word1, filter_values)
+    fn complete_backward(&self, filter_values: Vec<i64>) -> ChainIter {
+        self.complete_ids(WordField::Three, WordField::Two, WordField::One, filter_values)
     }
-    fn complete_middle<'a>(&'a self, filter_values: Vec<i64>) -> ChainIter {
-        self.complete_ids(WordField::Word1, WordField::Word3, WordField::Word2, filter_values)
+    fn complete_middle(&self, filter_values: Vec<i64>) -> ChainIter {
+        self.complete_ids(WordField::One, WordField::Three, WordField::Two, filter_values)
     }
 
     fn complete_and_map(&self, prefix: Vec<i64>) -> Result<Vec<String>> {
@@ -262,21 +262,20 @@ impl WordsDb {
                 .chain(self.complete_forward(filter))
                 .map(|id| self.get_spelling(id))
                 .collect());
-        return Ok(words.into_iter().flat_map(|x| x).collect())
+        Ok(words.into_iter().flat_map(|x| x).collect())
     }
 
-    pub fn complete_middle_out(&self, prefix: &Vec<&str> ) -> Result<Vec<String>> {
+    pub fn complete_middle_out(&self, prefix: &[&str] ) -> Result<Vec<String>> {
         debug!("complete middle out prefix: {:?}", prefix);
         let mut piter = prefix.iter();
         let first_word = try!(into_result(piter.next().map(|x| self.get_word_id(x))));
         let _ = piter.next();
         let last_word = try!(into_result(piter.next().map(|x| self.get_word_id(x))));
-        let middle_filter: Vec<i64> = first_word.iter().chain(last_word.iter()).map(|i| *i).collect();
-        let middle_word = if middle_filter.len() > 0 {
-            // self.complete_middle(middle_filter).take(1).next()
-            self.complete_middle(middle_filter).next()
-        } else {
+        let middle_filter: Vec<i64> = first_word.iter().chain(last_word.iter()).cloned().collect();
+        let middle_word = if middle_filter.is_empty() {
             None
+        } else {
+            self.complete_middle(middle_filter).next()
         };
         if middle_word.is_some() {
             // filter is mid and at least one of first,last
@@ -292,19 +291,19 @@ impl WordsDb {
         }
     }
 
-    pub fn complete(&self, prefix: &Vec<&str> ) -> Result<Vec<String>> {
-        let filter = self.complete_id_vec(&prefix);
+    pub fn complete(&self, prefix: &[&str] ) -> Result<Vec<String>> {
+        let filter = self.complete_id_vec(prefix);
         let words: Vec<Option<String>> =
             try!(self.complete_forward(filter)
                      .map(|id| self.get_spelling(id))
                      .collect());
-        return Ok(words.into_iter().flat_map(|x| x).collect())
+        Ok(words.into_iter().flat_map(|x| x).collect())
     }
 
     pub fn print_complete(&self, prefix: Vec<String> ) {
-        let filter = if prefix.len() > 0 {
-            let phrase = prefix.iter().map(AsRef::as_ref) .collect();
-            find_match_surround("_", &phrase)
+        let filter = if !prefix.is_empty() {
+            let phrase: Vec<&str> = prefix.iter().map(AsRef::as_ref) .collect();
+            find_match_surround("_", phrase.as_slice())
         } else {
             Some(vec![""])
         };
@@ -368,8 +367,7 @@ impl WordsDb {
 
     fn increment_frequency(&self, words: &[&ToSql]) -> Result<i32> {
         let sql = "select 1 from phrases where word1=? and word2=? and word3=?;";
-        let res = self.db.query_row(&sql, words,
-            |row| row.get::<i64>(0));
+        let res = self.db.query_row(sql, words, |row| row.get::<i64>(0));
         match res {
             Err(Error::QueryReturnedNoRows) => {
                 let sql = "insert into phrases (freq, word1, word2, word3) values (1,?,?,?);";
@@ -391,7 +389,7 @@ impl WordsDb {
         Ok(vec![0].into_iter().chain(result.into_iter()).chain(vec![0].into_iter()).collect())
     }
 
-    fn get_freq_where(&self, filter: &Vec<NamedParam>) -> Result<Option<i64>> {
+    fn get_freq_where(&self, filter: &[NamedParam]) -> Result<Option<i64>> {
         let wheres = NamedParam::assigns(filter);
         let values = NamedParam::values(filter);
         let sql_where = if wheres.as_slice().is_empty() {
@@ -405,7 +403,7 @@ impl WordsDb {
             |row| row.get::<Option<i64>>(0)))
     }
 
-    fn get_next_word_filter(&self, select_field: &str, prefix_filter: &Vec<NamedParam>, pick: i64)
+    fn get_next_word_filter(&self, select_field: &str, prefix_filter: &[NamedParam], pick: i64)
         -> Result<Option<i64>> {
         let wheres = NamedParam::assigns(prefix_filter);
         let values = NamedParam::values(prefix_filter);
