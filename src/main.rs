@@ -12,19 +12,19 @@ use std::env;
 const VERSION: Option<&'static str> = option_env!("CARGO_PKG_VERSION");
 
 fn cmd_add_phrase(words: &WordsDb, matches: &ArgMatches) {
-    let phrase = matches.values_of_lossy("words").unwrap_or(vec![]);
+    let phrase = matches.values_of_lossy("words").unwrap_or_default();
     words.add_phrase(phrase).expect("failed");
 }
 
 fn cmd_read_phrases(words: &WordsDb, matches: &ArgMatches) {
-    let files = matches.values_of_lossy("files").unwrap_or(vec![]);
+    let files = matches.values_of_lossy("files").unwrap_or_default();
     for file in files {
         words.read_file(file).expect("couldn't read file");
     }
 }
 
 fn cmd_complete(words: &WordsDb, matches: &ArgMatches) {
-    let prefix = matches.values_of_lossy("prefix").unwrap_or(vec![]);
+    let prefix = matches.values_of_lossy("prefix").unwrap_or_default();
     words.print_complete(prefix);
 }
 

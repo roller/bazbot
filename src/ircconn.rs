@@ -50,9 +50,9 @@ impl IrcConn {
         }
     }
 
-    fn respond_to_name(&self, target: &str, surround: &[&str]) {
-        debug!("surround words: {:?}", surround);
-        let result_words = self.words.complete_middle_out(surround);
+    fn respond_to_name(&self, target: &str, nearby: Vec<Vec<&str>>) {
+        debug!("nearby words: {:?}", nearby);
+        let result_words = self.words.new_complete_middle_out(nearby);
         match result_words {
             Ok(words) => {
                 let response = markov_words::join_phrase(vec![], words);
@@ -68,13 +68,14 @@ impl IrcConn {
     fn privmsg(&self, prefix: &PrefixInfo, target: &str, text: &str) {
         info!("msg {:?} {} {}", prefix, target, text);
         let phrase = markov_words::tokenize_phrase(text);
-        if let Some(surround) = markov_words::find_match_surround(self.server.current_nickname(), &phrase) {
-            self.respond_to_name(target, &surround);
-        } else {
+        let nearby = markov_words::find_nearby(self.server.current_nickname(), &phrase);
+        if nearby.is_empty() {
             let owned_phrase = phrase.iter().map(|s| s.to_string()).collect();
             if let Err(e) = self.words.add_phrase(owned_phrase) {
                 error!("Error adding line: {}", e);
             }
+        } else {
+            self.respond_to_name(target, nearby);
         }
     }
 

@@ -49,9 +49,13 @@ impl<'a> NamedParam<'a> {
 
 pub struct ChainIter<'a> {
     words: &'a WordsDb,
-    // database fields to filter or select, corresponding to how many filter
-    filter_fields: Vec<&'a str>,
-    filter_values: Vec<i64>,
+    // database fields to filter or select:
+    // -  where there's a corresponding value, this is used
+    //    to filter the next item
+    // - the first field after the value is the output field
+    filter_fields: Vec<&'a str>,  // Should always be 3
+    filter_values: Vec<i64>,      // 0-2 values
+    // infinite loop guard in case of bad data
     count: i64
 }
 
@@ -107,13 +111,16 @@ pub fn join_phrase(phrase1: Vec<String>, phrase2: Vec<String>) -> String {
         .join(" ")
 }
 
-// demote error result to Ok(None)
-fn no_rows_as_none<T>(result: Result<Option<T>>) -> Result<Option<T>> {
+
+// demote error result to Ok(None) and combine results
+fn no_rows_as_none<T>(result: Result<Result<Option<T>>>) -> Result<Option<T>> {
     match result {
         Err(Error::QueryReturnedNoRows) => Ok(None),
-        x => x
+        Err(x) | Ok(Err(x)) => Err(x),
+        Ok(ok) => ok
     }
 }
+
 
 // move errors to top, combine options
 // (is there some kind of flat_map or collect that can do this?
@@ -136,8 +143,12 @@ pub fn tokenize_phrase(phrase: &str) -> Vec<&str> {
     phrase.split_whitespace().collect::<Vec<&str>>()
 }
 
-// if needle is found, return a vec containing surrounding words
-pub fn find_match_surround<'a>(needle: &str, haystack: &[&'a str]) -> Option<Vec<&'a str>> {
+// Search haystack for nearby phrases:
+// returns vec of:
+//  length 0 if needle was not found
+//  length 1 or 2 if interesting nearby words found
+// each vec is a vec of 2 words or ""
+pub fn find_nearby<'a>(needle: &str, haystack: &[&'a str]) -> Vec<Vec<&'a str>> {
     let lower_needle = needle.to_lowercase();
     // add begin/end framing
     let framed: Vec<&str> = vec![""].into_iter()
@@ -145,15 +156,25 @@ pub fn find_match_surround<'a>(needle: &str, haystack: &[&'a str]) -> Option<Vec
             .chain(vec![""].into_iter())
             .collect();
 
-    framed.iter()
-        .position(|s| s.to_lowercase().starts_with(&lower_needle))
-        .map(|pos| vec![
-                // (does vec.get(-1) return None? does usize 0 - 1 panic?
-                if pos > 0 { framed.get(pos-1)  } else { None },
-                framed.get(pos),
-                framed.get(pos+1)
-            ].into_iter().flat_map(|o| o.map(|s| *s))
-             .collect::<Vec<&str>>())
+    if let Some(pos) = framed.iter()
+        .position(|s| s.to_lowercase().starts_with(&lower_needle)) {
+        let mut found = vec![];
+        if pos > 1 {
+            found.push( vec![ framed[pos-2], framed[pos-1] ] );
+        }
+
+        if pos < framed.len() - 2 {
+            found.push( vec![ framed[pos+1], framed[pos+2] ] );
+        }
+
+        if found.is_empty() {
+            found.push( vec![""] );
+        }
+        found
+
+    } else {
+        vec![]
+    }
 }
 
 #[derive(Debug)]
@@ -250,6 +271,9 @@ impl WordsDb {
     fn complete_backward(&self, filter_values: Vec<i64>) -> ChainIter {
         self.complete_ids(WordField::Three, WordField::Two, WordField::One, filter_values)
     }
+    // middle is intended for single lookup to prime other completions
+    // for example:  1 2 3
+    // Looking up (2) based on 1 and 3 isn't something that can reasonably chain further
     fn complete_middle(&self, filter_values: Vec<i64>) -> ChainIter {
         self.complete_ids(WordField::One, WordField::Three, WordField::Two, filter_values)
     }
@@ -263,6 +287,82 @@ impl WordsDb {
                 .map(|id| self.get_spelling(id))
                 .collect());
         Ok(words.into_iter().flat_map(|x| x).collect())
+    }
+
+    fn count_nearby(&self, w1: i64, w2: i64) -> Result<i64> {
+        let sql = "select coalesce(sum(freq),0) from phrases where (word1=? and word2=?) or (word2=? and word3=?)";
+        let res = self.db.query_row(sql, &[&w1,&w2,&w1,&w2], |row| row.get::<i64>(0));
+        match res {
+            Err(Error::QueryReturnedNoRows) => Ok(0),
+            Ok(count) => Ok(count),
+            Err(e) => Err(e)
+        }
+    }
+
+    fn prime_from_nearby(&self, prefixes: Vec<Vec<&str>>) -> Result<Vec<i64>> {
+        let mut prefix_ids: Vec<Vec<i64>> = Vec::with_capacity(prefixes.len());
+        let mut prefix_counts: Vec<i64> = Vec::with_capacity(prefixes.len());
+        let mut total_count = 0;
+        for prefix in prefixes {
+            let ids = self.complete_id_vec(prefix.as_slice());
+            let count = match ids.len() {
+                // The goal is to match pairs
+                2 => try!(self.count_nearby(ids[0],ids[1])),
+                // don't count, but give a chance for being used
+                1 => 1,
+                // I don't even
+                _ => 0
+            };
+            if count > 0 {
+                prefix_ids.push(ids);
+                prefix_counts.push(count);
+                total_count += count;
+            }
+        }
+        if total_count > 0 {
+            // chose a phrase to prime
+            let mut pick = random::<i64>().abs() % total_count + 1;
+            for (count, prefix) in prefix_counts.into_iter().zip(prefix_ids) {
+                pick -= count;
+                if pick <= 0 {
+                    return Ok(prefix)
+                }
+            }
+        }
+        // initialize from single stop token
+        Ok(vec![0])
+    }
+
+    /// The goal is to query nearby words to initialize phrases
+    ///
+    /// Start with an example phrase: X X A B _ D E X X
+    /// (where _ is the matched word)
+    /// markov the choice AB vs DE via SQL:
+    /// ```
+    /// select 0, sum(freq) from phrases_spelling
+    /// where (word1='A' and word2='B') or (word2='A' and word3='B')
+    /// union all
+    /// select 1, sum(freq) from phrases_spelling
+    /// where (word1='D' and word2='E') or (word2='D' and word3='E')
+    /// ```
+    /// This result can then be used to initialize forward and backward chains
+    /// challenge:
+    ///  - A and E are optional (which would result in different query), but only when:
+    ///  - B and D may be stop tokens, that's fine, but we probably don't want
+    ///    BOTH B and D to be stop tokens.  Initializing on only stop token
+    ///    is considered uninteresting, but may be the only choice
+
+    pub fn new_complete_middle_out(&self, prefixes: Vec<Vec<&str>>) -> Result<Vec<String>> {
+        let primer = try!(self.prime_from_nearby(prefixes));
+        let words = if primer[0] == 0 {
+            primer
+        } else {
+            let back_filter: Vec<i64> = primer.clone().into_iter().rev().collect();
+            let back_iter = self.complete_backward(back_filter);
+            let back_words: Vec<i64> = back_iter.collect();
+            back_words.into_iter().rev().chain(primer).collect()
+        };
+        self.complete_and_map(words)
     }
 
     pub fn complete_middle_out(&self, prefix: &[&str] ) -> Result<Vec<String>> {
@@ -301,22 +401,23 @@ impl WordsDb {
     }
 
     pub fn print_complete(&self, prefix: Vec<String> ) {
-        let filter = if !prefix.is_empty() {
-            let phrase: Vec<&str> = prefix.iter().map(AsRef::as_ref) .collect();
-            find_match_surround("_", phrase.as_slice())
+        let filter = if prefix.is_empty() {
+            // no prefix, initialize from an end-of-phrase sentinel value,
+            vec![vec![""]]
         } else {
-            Some(vec![""])
+            let phrase: Vec<&str> = prefix.iter().map(AsRef::as_ref) .collect();
+            find_nearby("_", phrase.as_slice())
         };
 
-        match filter {
-            Some(prefix) => {
-                let result_words = self.complete_middle_out(&prefix);
+        match filter.len() {
+            0 => println!("Couldn't find _ to complete against"),
+            _ => {
+                let result_words = self.new_complete_middle_out(filter);
                 match result_words {
-                    Ok(words) => println!("baz: {}", join_phrase(vec![], words)),
+                    Ok(words) => println!("{}", join_phrase(vec![], words)),
                     Err(e) => println!("Error: {:?}", e)
                 };
             }
-            None => println!("Couldn't find _ to complete against")
         };
     }
 
@@ -400,7 +501,7 @@ impl WordsDb {
         let sql = format!("select sum(freq) from phrases {}", sql_where);
 
         no_rows_as_none(self.db.query_row(&sql, values.as_slice(),
-            |row| row.get::<Option<i64>>(0)))
+            |row| row.get_checked::<Option<i64>>(0)))
     }
 
     fn get_next_word_filter(&self, select_field: &str, prefix_filter: &[NamedParam], pick: i64)
@@ -452,13 +553,13 @@ impl WordsDb {
     fn get_word_id(&self, spelling: &str) -> Result<Option<i64>> {
         no_rows_as_none(self.db.query_row(
             "select word_id from words where spelling=?",
-            &[&spelling], |row| row.get::<Option<i64>>(0)))
+            &[&spelling], |row| row.get_checked::<Option<i64>>(0)))
     }
 
     fn get_spelling(&self, word_id: i64) -> Result<Option<String>> {
         no_rows_as_none(self.db.query_row(
             "select spelling from words where word_id=?",
-            &[&word_id], |row| row.get::<Option<String>>(0)))
+            &[&word_id], |row| row.get_checked::<Option<String>>(0)))
     }
 }
 
@@ -476,7 +577,7 @@ mod tests {
         w.add_line("a b c d e").expect("read line");
         w
     }
-    
+
     #[test]
     fn summary() {
         let c = abcde();
@@ -495,7 +596,7 @@ mod tests {
         assert_next(&w, &mut chain, "b");
     }
     #[test]
-    fn forward2() {
+    fn forward() {
         let w = abcde();
         let filter = w.complete_id_vec(&vec!["","a"]);
         let mut chain = w.complete_forward(filter);
@@ -518,7 +619,7 @@ mod tests {
         assert_next(&w, &mut chain, "a");
     }
     #[test]
-    fn middle2() {
+    fn middle() {
         let w = abcde();
         let filter = w.complete_id_vec(&vec!["b","d"]);
         let mut chain = w.complete_middle(filter);
@@ -534,22 +635,29 @@ mod tests {
     }
     #[test]
     fn search_middle() {
-        let filter = find_match_surround("baz", &tokenize_phrase("a b baz d e")).unwrap();
-        assert_eq!(vec!["b","baz","d"], filter);
+        let filter = find_nearby("baz", &tokenize_phrase("a b baz d e"));
+        assert_eq!(vec![vec!["a","b"], vec!["d","e"]], filter);
     }
     #[test]
     fn search_begin() {
-        let filter = find_match_surround("baz", &tokenize_phrase("Baz, b c d e")).unwrap();
-        assert_eq!(vec!["","Baz,","b"], filter);
+        let filter = find_nearby("baz", &tokenize_phrase("Baz, b c d e"));
+        assert_eq!(vec![vec!["b","c"]], filter);
     }
     #[test]
     fn search_end() {
-        let filter = find_match_surround("baz", &tokenize_phrase("a b c d BAZOO!")).unwrap();
-        assert_eq!(vec!["d","BAZOO!",""], filter);
+        let filter = find_nearby("baz", &tokenize_phrase("a b c d BAZOO!"));
+        assert_eq!(vec![vec!["c","d"]], filter);
     }
     #[test]
     fn search_min() {
-        let filter = find_match_surround("baz", &tokenize_phrase("baz")).unwrap();
-        assert_eq!(vec!["","baz",""], filter);
+        let filter = find_nearby("baz", &tokenize_phrase("baz"));
+        assert_eq!(vec![vec![""]], filter);
     }
+    #[test]
+    fn search_fail() {
+        let filter = find_nearby("baz", &tokenize_phrase("That's not a knife!"));
+        let empty: Vec<Vec<&str>> = vec![];
+        assert_eq!(empty, filter);
+    }
+
 }
