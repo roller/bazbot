@@ -84,7 +84,7 @@ Environment
     let cfg_file: String = bazargs.value_of_lossy("config")
         .and_then(|arg| Some(arg.to_string()))
         .or_else(|| env::var("BAZBOT_CONFIG").ok())
-        .unwrap_or("bazbot.json".to_string());
+        .unwrap_or_else(|| "bazbot.json".to_string());
     // let cfg = Config::load(&cfg_file).expect(&format!("Couldn't load config file {}", &cfg_file));
     let cfg = Config::load(&cfg_file);
     let words = WordsDb::from_config(&cfg.as_ref().ok());
