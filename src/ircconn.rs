@@ -28,12 +28,7 @@ impl IrcConn {
     pub fn run(&self) {
         self.server.identify().unwrap();
         debug!("identified.");
-        for message in self.server.iter() {
-            match message {
-                Ok(ok_msg) => self.handle_message(&ok_msg),
-                Err(e) => error!("error: {:?}", e)
-            }
-        }
+        self.server.for_each_incoming(|ok_msg| self.handle_message(&ok_msg)).unwrap()
     }
 
     fn handle_message(&self, msg: &Message){

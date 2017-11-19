@@ -1,12 +1,12 @@
 [package]
 name = "bazbot"
-version = "0.2.4"
+version = "0.2.5"
 authors = ["Joel Roller <roller@gmail.com>"]
 license = "CC0-1.0"
 readme = "README.md"
 
 [dependencies]
-irc = "0.11.3"
+irc = "0.12"
 dotenv = "0.8.0"
 rusqlite = "0.6.0"
 clap = "2.3.0"

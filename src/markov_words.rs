@@ -1,5 +1,3 @@
-extern crate rusqlite;
-extern crate rand;
 extern crate irc;
 
 use migration;
