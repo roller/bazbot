@@ -1,5 +1,4 @@
 target
-Cargo.lock
 # bazbot config and data files
 .env
 bazbot*.db
