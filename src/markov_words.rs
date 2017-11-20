@@ -204,10 +204,10 @@ impl WordsDb {
     }
     pub fn summary(&self) {
         println!("Summary of {:?}", self);
-        let words = self.db.query_row(
-            "select count(*) from words", &[], |row| row.get::<i64>(0));
+        let words: Result<String> = self.db.query_row(
+            "select count(*) from words", &[], |row| row.get(0));
         let phrases = self.db.query_row(
-            "select count(*) from phrases", &[], |row| row.get::<i64>(0));
+            "select count(*) from phrases", &[], |row| row.get(0));
         match words.as_ref() {
             Ok(words) => println!("Words: {}", words),
             Err(e) => println!("Error counting words: {}", e)
@@ -289,7 +289,7 @@ impl WordsDb {
 
     fn count_nearby(&self, w1: i64, w2: i64) -> Result<i64> {
         let sql = "select coalesce(sum(freq),0) from phrases where (word1=? and word2=?) or (word2=? and word3=?)";
-        let res = self.db.query_row(sql, &[&w1,&w2,&w1,&w2], |row| row.get::<i64>(0));
+        let res = self.db.query_row(sql, &[&w1,&w2,&w1,&w2], |row| row.get(0));
         match res {
             Err(Error::QueryReturnedNoRows) => Ok(0),
             Ok(count) => Ok(count),
@@ -466,7 +466,7 @@ impl WordsDb {
 
     fn increment_frequency(&self, words: &[&ToSql]) -> Result<i32> {
         let sql = "select 1 from phrases where word1=? and word2=? and word3=?;";
-        let res = self.db.query_row(sql, words, |row| row.get::<i64>(0));
+        let res: Result<i64> = self.db.query_row(sql, words, |row| row.get(0));
         match res {
             Err(Error::QueryReturnedNoRows) => {
                 let sql = "insert into phrases (freq, word1, word2, word3) values (1,?,?,?);";
@@ -499,7 +499,7 @@ impl WordsDb {
         let sql = format!("select sum(freq) from phrases {}", sql_where);
 
         no_rows_as_none(self.db.query_row(&sql, values.as_slice(),
-            |row| row.get_checked::<Option<i64>>(0)))
+            |row| row.get_checked(0)))
     }
 
     fn get_next_word_filter(&self, select_field: &str, prefix_filter: &[NamedParam], pick: i64)
@@ -525,11 +525,12 @@ impl WordsDb {
         let mut stmt = try!(self.db.prepare(&sql));
 
         let rows = try!(stmt.query(&values));
-        for result_row in rows {
+        // for result_row in rows {
+        while let Some(result_row) = rows.next() {
             let row = try!(result_row);
             let freq: i64 = row.get(0);
             if pick_count <= freq {
-                return Ok(row.get::<Option<i64>>(1));
+                return Ok(row.get(1));
             }
             pick_count -= freq;
         }
@@ -551,13 +552,13 @@ impl WordsDb {
     fn get_word_id(&self, spelling: &str) -> Result<Option<i64>> {
         no_rows_as_none(self.db.query_row(
             "select word_id from words where spelling=?",
-            &[&spelling], |row| row.get_checked::<Option<i64>>(0)))
+            &[&spelling], |row| row.get_checked(0)))
     }
 
     fn get_spelling(&self, word_id: i64) -> Result<Option<String>> {
         no_rows_as_none(self.db.query_row(
             "select spelling from words where word_id=?",
-            &[&word_id], |row| row.get_checked::<Option<String>>(0)))
+            &[&word_id], |row| row.get_checked(0)))
     }
 }
 

@@ -92,8 +92,8 @@ impl<'a> Migrator<'a> {
     fn check_migration(&self, migration: &Migration) -> Result<bool> {
         let check_sql = "select 1 from migrations where m_id = ?";
         let params : Vec<&ToSql> = vec![&migration.m_id];
-        let res = self.db.query_row(check_sql, &params,
-            |row| row.get::<Option<i64>>(0));
+        let res: Result<i64> = self.db.query_row(check_sql, &params,
+            |row| row.get(0));
         match res {
             Err(Error::SqliteFailure(_,_)) | // returned when no migration table
             Err(Error::QueryReturnedNoRows) => Ok(false),
