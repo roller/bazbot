@@ -204,14 +204,14 @@ impl WordsDb {
     }
     pub fn summary(&self) {
         println!("Summary of {:?}", self);
-        let words: Result<String> = self.db.query_row(
+        let words: Result<i64> = self.db.query_row(
             "select count(*) from words", &[], |row| row.get(0));
-        let phrases = self.db.query_row(
-            "select count(*) from phrases", &[], |row| row.get(0));
         match words.as_ref() {
             Ok(words) => println!("Words: {}", words),
             Err(e) => println!("Error counting words: {}", e)
         }
+        let phrases = self.db.query_row(
+            "select count(*) from phrases", &[], |row| row.get(0));
         match phrases.as_ref() {
             Ok(phrases) => println!("Phrases: {}", phrases),
             Err(e) => println!("Error counting phrases: {}", e)
