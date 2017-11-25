@@ -16,7 +16,7 @@ fn cmd_add_phrase(words: &WordsDb, matches: &ArgMatches) {
     words.add_phrase(phrase).expect("failed");
 }
 
-fn cmd_read_phrases(words: &WordsDb, matches: &ArgMatches) {
+fn cmd_read_phrases(words: &mut WordsDb, matches: &ArgMatches) {
     let files = matches.values_of_lossy("files").unwrap_or_default();
     for file in files {
         words.read_file(file).expect("couldn't read file");
@@ -87,13 +87,13 @@ Environment
         .unwrap_or_else(|| "bazbot.json".to_string());
     // let cfg = Config::load(&cfg_file).expect(&format!("Couldn't load config file {}", &cfg_file));
     let cfg = Config::load(&cfg_file);
-    let words = WordsDb::from_config(&cfg.as_ref().ok());
+    let mut words = WordsDb::from_config(&cfg.as_ref().ok());
     words.migrate().expect("Database migration failed");
 
     match bazargs.subcommand() {
         ("summary", Some(_)) => words.summary(),
         ("add", Some(subm)) => cmd_add_phrase(&words, subm),
-        ("read", Some(subm)) => cmd_read_phrases(&words, subm),
+        ("read", Some(subm)) => cmd_read_phrases(&mut words, subm),
         ("complete", Some(subm)) => cmd_complete(&words, subm),
         ("irc", Some(_)) => cmd_irc(words, cfg.expect(&format!("Couldn't load config file {}", &cfg_file))),
         _ => {

@@ -419,7 +419,7 @@ impl WordsDb {
         };
     }
 
-    pub fn read_file(&self, filename: String) -> Result<()> {
+    pub fn read_file(&mut self, filename: String) -> Result<()> {
         let res = fs::File::open(&filename);
         let mut lines = 0;
         match res {
@@ -430,7 +430,8 @@ impl WordsDb {
                 for line_res in bufread.lines() {
                     match line_res {
                         Ok(line) => {
-                            try!(self.add_line(&line));
+                            // try to run this pattern in a test
+                            // try!(self.add_line(&line));
                             lines += 1;
                             if lines % 1000 == 0 {
                                 debug!("Added {} lines", lines);
@@ -524,7 +525,7 @@ impl WordsDb {
         let mut pick_count: i64 = pick;
         let mut stmt = try!(self.db.prepare(&sql));
 
-        let rows = try!(stmt.query(&values));
+        let mut rows = try!(stmt.query(&values));
         // for result_row in rows {
         while let Some(result_row) = rows.next() {
             let row = try!(result_row);

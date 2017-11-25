@@ -1,18 +1,19 @@
 extern crate irc;
 use self::irc::client::prelude::*;
 
+use std::cell::RefCell;
 use markov_words;
 use markov_words::WordsDb;
 
 pub struct IrcConn {
-    words: WordsDb,
+    words: RefCell<Box<WordsDb>>,
     server: IrcServer
 }
 
 impl IrcConn {
     pub fn new(words: WordsDb, server: IrcServer) -> IrcConn {
         IrcConn {
-            words: words,
+            words: RefCell::new(Box::new(words)),
             server: server
         }
     }
@@ -20,7 +21,7 @@ impl IrcConn {
     pub fn new_from_config(words: WordsDb, config: Config) -> IrcConn {
         let server = IrcServer::from_config(config).unwrap();
         IrcConn {
-            words: words,
+            words: RefCell::new(Box::new(words)),
             server: server
         }
     }
@@ -47,7 +48,8 @@ impl IrcConn {
 
     fn respond_to_name(&self, target: &str, nearby: Vec<Vec<&str>>) {
         debug!("nearby words: {:?}", nearby);
-        let result_words = self.words.new_complete_middle_out(nearby);
+        let mut words = self.words.borrow_mut();
+        let result_words = words.new_complete_middle_out(nearby);
         match result_words {
             Ok(words) => {
                 let response = markov_words::join_phrase(vec![], words);
@@ -66,7 +68,8 @@ impl IrcConn {
         let nearby = markov_words::find_nearby(self.server.current_nickname(), &phrase);
         if nearby.is_empty() {
             let owned_phrase = phrase.iter().map(|s| s.to_string()).collect();
-            if let Err(e) = self.words.add_phrase(owned_phrase) {
+            let mut words = self.words.borrow_mut();
+            if let Err(e) = words.add_phrase(owned_phrase) {
                 error!("Error adding line: {}", e);
             }
         } else {
