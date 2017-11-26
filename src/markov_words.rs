@@ -109,7 +109,6 @@ pub fn join_phrase(phrase1: Vec<String>, phrase2: Vec<String>) -> String {
         .join(" ")
 }
 
-
 // demote error result to Ok(None) and combine results
 fn no_rows_as_none<T>(result: Result<Result<Option<T>>>) -> Result<Option<T>> {
     match result {
@@ -179,7 +178,6 @@ pub fn find_nearby<'a>(needle: &str, haystack: &[&'a str]) -> Vec<Vec<&'a str>> 
 pub struct WordsDb {
     db: Connection
 }
-
 
 impl WordsDb {
     pub fn new(db_url: String) -> WordsDb {
@@ -425,13 +423,13 @@ impl WordsDb {
         match res {
             Ok(file) => {
                 debug!("file: {:?}", file);
-                let tx = try!(self.db.transaction());
+                let tx = self.db.transaction()?;
                 let bufread = BufReader::new(&file);
                 for line_res in bufread.lines() {
                     match line_res {
                         Ok(line) => {
                             // try to run this pattern in a test
-                            // try!(self.add_line(&line));
+                            Self::add_line_db(&tx, &line)?;
                             lines += 1;
                             if lines % 1000 == 0 {
                                 debug!("Added {} lines", lines);
@@ -450,41 +448,47 @@ impl WordsDb {
 
     // add line as a phrase, assuming string separated by whitespace
     pub fn add_line(&self, line: &str) -> Result<()> {
+        Self::add_line_db(&self.db, line)
+    }
+    fn add_line_db(db: &Connection, line: &str) -> Result<()> {
         let words: Vec<String> = line.split_whitespace().map(|s| s.to_string()).collect();
-        self.add_phrase(words)
+        Self::add_phrase_db(db, words)
     }
 
     pub fn add_phrase(&self, phrase: Vec<String> ) -> Result<()> {
-        let v = try!(self.get_phrase_vec(phrase));
+        Self::add_phrase_db(&self.db, phrase)
+    }
+    fn add_phrase_db(db: &Connection, phrase: Vec<String> ) -> Result<()> {
+        let v = try!(Self::get_phrase_vec(db, phrase));
         let v1 = v.iter();
         let v2 = v.iter().skip(1);
         let v3 = v.iter().skip(2);
         for ((w1,w2),w3) in v1.zip(v2).zip(v3) {
-            try!(self.increment_frequency(&[w1,w2,w3]));
+            try!(Self::increment_frequency_db(db, &[w1,w2,w3]));
         }
         Ok(())
     }
 
-    fn increment_frequency(&self, words: &[&ToSql]) -> Result<i32> {
+    fn increment_frequency_db(db: &Connection, words: &[&ToSql]) -> Result<i32> {
         let sql = "select 1 from phrases where word1=? and word2=? and word3=?;";
-        let res: Result<i64> = self.db.query_row(sql, words, |row| row.get(0));
+        let res: Result<i64> = db.query_row(sql, words, |row| row.get(0));
         match res {
             Err(Error::QueryReturnedNoRows) => {
                 let sql = "insert into phrases (freq, word1, word2, word3) values (1,?,?,?);";
-                self.db.execute(sql, words)
+                db.execute(sql, words)
             },
             Ok(_) => {
                 let sql = "update phrases set freq=freq+1 where word1=? and word2=? and word3=?;";
-                self.db.execute(sql, words)
+                db.execute(sql, words)
             },
             Err(e) => Err(e)
         }
     }
 
     // lookup word ids and surround with begin/end 0s
-    fn get_phrase_vec(&self, phrase: Vec<String>) -> Result<Vec<i64>> {
+    fn get_phrase_vec(db: &Connection, phrase: Vec<String>) -> Result<Vec<i64>> {
         let result: Vec<i64> = try!(phrase.iter().map(
-            |w| self.get_or_add_word_id(w))
+            |w| Self::get_or_add_word_id(db, w))
             .collect());
         Ok(vec![0].into_iter().chain(result.into_iter()).chain(vec![0].into_iter()).collect())
     }
@@ -538,12 +542,12 @@ impl WordsDb {
         Ok(None)
     }
 
-    fn get_or_add_word_id(&self, spelling: &str) -> Result<i64> {
-        let res = self.get_word_id(spelling);
+    fn get_or_add_word_id(db: &Connection, spelling: &str) -> Result<i64> {
+        let res = Self::get_word_id_db(db, spelling);
         match res {
             Ok(None) => {
-                try!(self.db.execute("insert into words (spelling) values (?)", &[&spelling]));
-                Ok(self.db.last_insert_rowid())
+                try!(db.execute("insert into words (spelling) values (?)", &[&spelling]));
+                Ok(db.last_insert_rowid())
             },
             Ok(Some(word_id)) => Ok(word_id),
             Err(e) => Err(e)
@@ -551,7 +555,10 @@ impl WordsDb {
     }
 
     fn get_word_id(&self, spelling: &str) -> Result<Option<i64>> {
-        no_rows_as_none(self.db.query_row(
+        Self::get_word_id_db(&self.db, spelling)
+    }
+    fn get_word_id_db(db: &Connection, spelling: &str) -> Result<Option<i64>> {
+        no_rows_as_none(db.query_row(
             "select word_id from words where spelling=?",
             &[&spelling], |row| row.get_checked(0)))
     }
@@ -659,5 +666,6 @@ mod tests {
         let empty: Vec<Vec<&str>> = vec![];
         assert_eq!(empty, filter);
     }
+
 
 }

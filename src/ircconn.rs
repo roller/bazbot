@@ -48,7 +48,7 @@ impl IrcConn {
 
     fn respond_to_name(&self, target: &str, nearby: Vec<Vec<&str>>) {
         debug!("nearby words: {:?}", nearby);
-        let mut words = self.words.borrow_mut();
+        let words = self.words.borrow_mut();
         let result_words = words.new_complete_middle_out(nearby);
         match result_words {
             Ok(words) => {
@@ -68,7 +68,7 @@ impl IrcConn {
         let nearby = markov_words::find_nearby(self.server.current_nickname(), &phrase);
         if nearby.is_empty() {
             let owned_phrase = phrase.iter().map(|s| s.to_string()).collect();
-            let mut words = self.words.borrow_mut();
+            let words = self.words.borrow_mut();
             if let Err(e) = words.add_phrase(owned_phrase) {
                 error!("Error adding line: {}", e);
             }
