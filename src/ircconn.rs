@@ -67,9 +67,9 @@ impl IrcConn {
         let phrase = markov_words::tokenize_phrase(text);
         let nearby = markov_words::find_nearby(self.server.current_nickname(), &phrase);
         if nearby.is_empty() {
-            let owned_phrase = phrase.iter().map(|s| s.to_string()).collect();
+            let owned_phrase: Vec<String> = phrase.iter().map(|s| s.to_string()).collect();
             let words = self.words.borrow_mut();
-            if let Err(e) = words.add_phrase(owned_phrase) {
+            if let Err(e) = words.add_phrase(&owned_phrase) {
                 error!("Error adding line: {}", e);
             }
         } else {

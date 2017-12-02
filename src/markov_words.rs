@@ -15,6 +15,9 @@ enum WordField {
 }
 
 impl WordField {
+    fn into_str(self) -> &'static str {
+        self.to_str()
+    }
     fn to_str(&self) -> &'static str {
         match *self {
             WordField::One => "word1",
@@ -76,8 +79,8 @@ impl<'a> Iterator for ChainIter<'a> {
                                        .map(|(f,v)| NamedParam::new(*f,Box::new(*v)))
                                        .collect();
         let res = {
-            let select_field = self.filter_fields.iter()
-                .skip(filter.len()).next().expect("missing filter field");
+            let select_field = self.filter_fields
+                .get(filter.len()).expect("missing filter field");
             self.words.complete_any(select_field, &filter)
         };
         self.count += 1;
@@ -192,7 +195,7 @@ impl WordsDb {
             .and_then(|cfg| cfg.options.as_ref())
             .and_then(|opt| opt.get("words").and_then(|r| Some(r.clone())))
             .or_else(|| -> Option<String> { env::var("BAZBOT_WORDS").ok() } )
-            .unwrap_or("bazbot.db".to_string());
+            .unwrap_or_else(|| "bazbot.db".to_string());
         WordsDb::new(db_url)
     }
     pub fn new_from_env() -> WordsDb {
@@ -255,7 +258,7 @@ impl WordsDb {
     fn complete_ids(&self, filter1: WordField, filter2: WordField, filter3: WordField, filter_values: Vec<i64>) -> ChainIter {
         ChainIter {
             words: self,
-            filter_fields: vec![filter1.to_str(), filter2.to_str(), filter3.to_str()],
+            filter_fields: vec![filter1.into_str(), filter2.into_str(), filter3.into_str()],
             filter_values: filter_values,
             count: 0
         }
@@ -396,7 +399,7 @@ impl WordsDb {
         Ok(words.into_iter().flat_map(|x| x).collect())
     }
 
-    pub fn print_complete(&self, prefix: Vec<String> ) {
+    pub fn print_complete(&self, prefix: &[String] ) {
         let filter = if prefix.is_empty() {
             // no prefix, initialize from an end-of-phrase sentinel value,
             vec![vec![""]]
@@ -417,7 +420,7 @@ impl WordsDb {
         };
     }
 
-    pub fn read_file(&mut self, filename: String) -> Result<()> {
+    pub fn read_file(&mut self, filename: &str) -> Result<()> {
         let res = fs::File::open(&filename);
         let mut lines = 0;
         match res {
@@ -452,13 +455,13 @@ impl WordsDb {
     }
     fn add_line_db(db: &Connection, line: &str) -> Result<()> {
         let words: Vec<String> = line.split_whitespace().map(|s| s.to_string()).collect();
-        Self::add_phrase_db(db, words)
+        Self::add_phrase_db(db, &words)
     }
 
-    pub fn add_phrase(&self, phrase: Vec<String> ) -> Result<()> {
+    pub fn add_phrase(&self, phrase: &[String] ) -> Result<()> {
         Self::add_phrase_db(&self.db, phrase)
     }
-    fn add_phrase_db(db: &Connection, phrase: Vec<String> ) -> Result<()> {
+    fn add_phrase_db(db: &Connection, phrase: &[String] ) -> Result<()> {
         let v = try!(Self::get_phrase_vec(db, phrase));
         let v1 = v.iter();
         let v2 = v.iter().skip(1);
@@ -486,7 +489,7 @@ impl WordsDb {
     }
 
     // lookup word ids and surround with begin/end 0s
-    fn get_phrase_vec(db: &Connection, phrase: Vec<String>) -> Result<Vec<i64>> {
+    fn get_phrase_vec(db: &Connection, phrase: &[String]) -> Result<Vec<i64>> {
         let result: Vec<i64> = try!(phrase.iter().map(
             |w| Self::get_or_add_word_id(db, w))
             .collect());
