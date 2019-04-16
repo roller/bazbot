@@ -14,7 +14,7 @@ impl IrcConn {
     pub fn new(words: WordsDb, server: IrcServer) -> IrcConn {
         IrcConn {
             words: RefCell::new(Box::new(words)),
-            server: server
+            server
         }
     }
 
@@ -22,7 +22,7 @@ impl IrcConn {
         let server = IrcServer::from_config(config).unwrap();
         IrcConn {
             words: RefCell::new(Box::new(words)),
-            server: server
+            server
         }
     }
 
@@ -67,7 +67,7 @@ impl IrcConn {
         let phrase = markov_words::tokenize_phrase(text);
         let nearby = markov_words::find_nearby(self.server.current_nickname(), &phrase);
         if nearby.is_empty() {
-            let owned_phrase: Vec<String> = phrase.iter().map(|s| s.to_string()).collect();
+            let owned_phrase: Vec<String> = phrase.iter().map(ToString::to_string).collect();
             let words = self.words.borrow_mut();
             if let Err(e) = words.add_phrase(&owned_phrase) {
                 error!("Error adding line: {}", e);
@@ -99,7 +99,7 @@ impl<'a> PrefixInfo<'a> {
         PrefixInfo {
             name: name_user.next().unwrap_or(""),
             user: name_user.next(),
-            host: host
+            host
         }
     }
 }

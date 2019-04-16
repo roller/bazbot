@@ -63,7 +63,7 @@ pub struct Migrator<'a> {
 
 impl<'a> Migrator<'a> {
     fn new(db: &'a Connection) -> Migrator<'a> {
-        Migrator { db: db }
+        Migrator { db }
     }
 
     fn migrate(&self) -> Result<()> {

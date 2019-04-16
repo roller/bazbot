@@ -37,7 +37,7 @@ impl<'a> NamedParam<'a> {
     fn new(field: &str, value: Box<ToSql + 'a>) -> NamedParam<'a>{
         NamedParam {
             field: field.to_string(),
-            value: value
+            value
         }
     }
     fn assigns(params: &[NamedParam]) -> Vec<String> {
@@ -152,7 +152,7 @@ pub fn find_nearby<'a>(needle: &str, haystack: &[&'a str]) -> Vec<Vec<&'a str>> 
     let lower_needle = needle.to_lowercase();
     // add begin/end framing
     let framed: Vec<&str> = vec![""].into_iter()
-            .chain(haystack.iter().map(|x| *x))
+            .chain(haystack.iter().cloned())
             .chain(vec![""].into_iter())
             .collect();
 
@@ -190,7 +190,7 @@ impl WordsDb {
                 .expect("Could not open database")
         }
     }
-    pub fn from_config(optconfig: &Option<&Config>) -> WordsDb {
+    pub fn from_config(optconfig: Option<&Config>) -> WordsDb {
         let db_url: String = optconfig.as_ref()
             .and_then(|cfg| cfg.options.as_ref())
             .and_then(|opt| opt.get("words").and_then(|r| Some(r.clone())))
@@ -259,7 +259,7 @@ impl WordsDb {
         ChainIter {
             words: self,
             filter_fields: vec![filter1.into_str(), filter2.into_str(), filter3.into_str()],
-            filter_values: filter_values,
+            filter_values,
             count: 0
         }
     }
@@ -454,7 +454,7 @@ impl WordsDb {
         Self::add_line_db(&self.db, line)
     }
     fn add_line_db(db: &Connection, line: &str) -> Result<()> {
-        let words: Vec<String> = line.split_whitespace().map(|s| s.to_string()).collect();
+        let words: Vec<String> = line.split_whitespace().map(ToString::to_string).collect();
         Self::add_phrase_db(db, &words)
     }
 

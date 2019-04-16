@@ -87,7 +87,7 @@ Environment
         .unwrap_or_else(|| "bazbot.json".to_string());
     // let cfg = Config::load(&cfg_file).expect(&format!("Couldn't load config file {}", &cfg_file));
     let cfg = Config::load(&cfg_file);
-    let mut words = WordsDb::from_config(&cfg.as_ref().ok());
+    let mut words = WordsDb::from_config(cfg.as_ref().ok());
     words.migrate().expect("Database migration failed");
 
     match bazargs.subcommand() {
@@ -95,7 +95,8 @@ Environment
         ("add", Some(subm)) => cmd_add_phrase(&words, subm),
         ("read", Some(subm)) => cmd_read_phrases(&mut words, subm),
         ("complete", Some(subm)) => cmd_complete(&words, subm),
-        ("irc", Some(_)) => cmd_irc(words, cfg.expect(&format!("Couldn't load config file {}", &cfg_file))),
+        ("irc", Some(_)) => cmd_irc(words, cfg.unwrap_or_else(|_|
+            panic!("Couldn't load config file {}", &cfg_file))),
         _ => {
             // Can't use App print_help because we
             // used get_matches instead.
