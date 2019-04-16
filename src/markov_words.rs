@@ -337,7 +337,7 @@ impl WordsDb {
     /// Start with an example phrase: X X A B _ D E X X
     /// (where _ is the matched word)
     /// markov the choice AB vs DE via SQL:
-    /// ```
+    /// ``` SQL
     /// select 0, sum(freq) from phrases_spelling
     /// where (word1='A' and word2='B') or (word2='A' and word3='B')
     /// union all
@@ -472,7 +472,7 @@ impl WordsDb {
         Ok(())
     }
 
-    fn increment_frequency_db(db: &Connection, words: &[&ToSql]) -> Result<i32> {
+    fn increment_frequency_db(db: &Connection, words: &[&ToSql]) -> Result<usize> {
         let sql = "select 1 from phrases where word1=? and word2=? and word3=?;";
         let res: Result<i64> = db.query_row(sql, words, |row| row.get(0));
         match res {
