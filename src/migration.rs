@@ -67,10 +67,10 @@ impl<'a> Migrator<'a> {
     }
 
     fn migrate(&self) -> Result<()> {
-        try!(self.base_migration());
+        r#try!(self.base_migration());
         for migration in migrations() {
-            if !try!(self.check_migration(&migration)) {
-                try!(self.run_migration(&migration))
+            if !r#try!(self.check_migration(&migration)) {
+                r#try!(self.run_migration(&migration))
             }
         }
         Ok(())
@@ -91,7 +91,7 @@ impl<'a> Migrator<'a> {
     // returt true if migration is already logged in db
     fn check_migration(&self, migration: &Migration) -> Result<bool> {
         let check_sql = "select 1 from migrations where m_id = ?";
-        let params : Vec<&ToSql> = vec![&migration.m_id];
+        let params : Vec<&dyn ToSql> = vec![&migration.m_id];
         let res: Result<i64> = self.db.query_row(check_sql, &params,
             |row| row.get(0));
         match res {
@@ -104,8 +104,8 @@ impl<'a> Migrator<'a> {
 
     fn run_migration(&self, migration: &Migration) -> Result<()> {
         info!("run migration: {:?}", migration.m_id);
-        try!(self.db.execute_batch(migration.m_sql));
-        try!(self.db.execute(
+        r#try!(self.db.execute_batch(migration.m_sql));
+        r#try!(self.db.execute(
             "insert into migrations (m_id) values (?)",
             &[ &migration.m_id ]
         ));

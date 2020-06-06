@@ -2,8 +2,8 @@ extern crate irc;
 use self::irc::client::prelude::*;
 
 use std::cell::RefCell;
-use markov_words;
-use markov_words::WordsDb;
+use crate::markov_words;
+use crate::markov_words::WordsDb;
 
 pub struct IrcConn {
     words: RefCell<Box<WordsDb>>,

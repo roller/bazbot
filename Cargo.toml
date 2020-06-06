@@ -4,6 +4,7 @@ version = "0.2.5"
 authors = ["Joel Roller <roller@gmail.com>"]
 license = "CC0-1.0"
 readme = "README.md"
+edition = "2018"
 
 [dependencies]
 irc = "0.12"
