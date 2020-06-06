@@ -193,7 +193,7 @@ impl WordsDb {
     pub fn from_config(optconfig: Option<&Config>) -> WordsDb {
         let db_url: String = optconfig.as_ref()
             .and_then(|cfg| cfg.options.as_ref())
-            .and_then(|opt| opt.get("words").and_then(|r| Some(r.clone())))
+            .and_then(|opt| opt.get("words").cloned())
             .or_else(|| -> Option<String> { env::var("BAZBOT_WORDS").ok() } )
             .unwrap_or_else(|| "bazbot.db".to_string());
         WordsDb::new(db_url)
@@ -284,7 +284,7 @@ impl WordsDb {
                 .chain(self.complete_forward(filter))
                 .map(|id| self.get_spelling(id))
                 .collect::<Result<Vec<Option<String>>>>()?;
-        Ok(words.into_iter().flat_map(|x| x).collect())
+        Ok(words.into_iter().flatten().collect())
     }
 
     fn count_nearby(&self, w1: i64, w2: i64) -> Result<i64> {
@@ -377,7 +377,7 @@ impl WordsDb {
         };
         if middle_word.is_some() {
             // filter is mid and at least one of first,last
-            let filter: Vec<i64> = vec![first_word, middle_word, last_word].into_iter().flat_map(|x| x).collect();
+            let filter: Vec<i64> = vec![first_word, middle_word, last_word].into_iter().flatten().collect();
             let back_filter: Vec<i64> = filter.clone().into_iter().take(2).collect::<Vec<i64>>().into_iter().rev().collect();
             let back_iter = self.complete_backward(back_filter);
             let back_words: Vec<i64> = back_iter.collect();
@@ -394,7 +394,7 @@ impl WordsDb {
         let words = self.complete_forward(filter)
                      .map(|id| self.get_spelling(id))
                      .collect::<Result<Vec<Option<String>>>>()?;
-        Ok(words.into_iter().flat_map(|x| x).collect())
+        Ok(words.into_iter().flatten().collect())
     }
 
     pub fn print_complete(&self, prefix: &[String] ) {

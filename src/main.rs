@@ -82,7 +82,7 @@ Environment
         .get_matches();
 
     let cfg_file: String = bazargs.value_of_lossy("config")
-        .and_then(|arg| Some(arg.to_string()))
+        .map(|arg| arg.to_string())
         .or_else(|| env::var("BAZBOT_CONFIG").ok())
         .unwrap_or_else(|| "bazbot.json".to_string());
     // let cfg = Config::load(&cfg_file).expect(&format!("Couldn't load config file {}", &cfg_file));
