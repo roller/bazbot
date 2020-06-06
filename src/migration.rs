@@ -67,10 +67,10 @@ impl<'a> Migrator<'a> {
     }
 
     fn migrate(&self) -> Result<()> {
-        r#try!(self.base_migration());
+        self.base_migration()?;
         for migration in migrations() {
-            if !r#try!(self.check_migration(&migration)) {
-                r#try!(self.run_migration(&migration))
+            if !self.check_migration(&migration)? {
+                self.run_migration(&migration)?
             }
         }
         Ok(())
@@ -104,11 +104,11 @@ impl<'a> Migrator<'a> {
 
     fn run_migration(&self, migration: &Migration) -> Result<()> {
         info!("run migration: {:?}", migration.m_id);
-        r#try!(self.db.execute_batch(migration.m_sql));
-        r#try!(self.db.execute(
+        self.db.execute_batch(migration.m_sql)?;
+        self.db.execute(
             "insert into migrations (m_id) values (?)",
             &[ &migration.m_id ]
-        ));
+        )?;
         Ok(())
     }
 }

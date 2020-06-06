@@ -280,11 +280,10 @@ impl WordsDb {
     fn complete_and_map(&self, prefix: Vec<i64>) -> Result<Vec<String>> {
         // filter based on the last two words in prefix
         let filter = last_n(&prefix, 2);
-        let words: Vec<Option<String>> =
-            r#try!(prefix.into_iter()
+        let words = prefix.into_iter()
                 .chain(self.complete_forward(filter))
                 .map(|id| self.get_spelling(id))
-                .collect());
+                .collect::<Result<Vec<Option<String>>>>()?;
         Ok(words.into_iter().flat_map(|x| x).collect())
     }
 
@@ -306,7 +305,7 @@ impl WordsDb {
             let ids = self.complete_id_vec(prefix.as_slice());
             let count = match ids.len() {
                 // The goal is to match pairs
-                2 => r#try!(self.count_nearby(ids[0],ids[1])),
+                2 => self.count_nearby(ids[0],ids[1])?,
                 // don't count, but give a chance for being used
                 1 => 1,
                 // I don't even
@@ -352,7 +351,7 @@ impl WordsDb {
     ///    is considered uninteresting, but may be the only choice
 
     pub fn new_complete_middle_out(&self, prefixes: Vec<Vec<&str>>) -> Result<Vec<String>> {
-        let primer = r#try!(self.prime_from_nearby(prefixes));
+        let primer = self.prime_from_nearby(prefixes)?;
         let words = if primer[0] == 0 {
             primer
         } else {
@@ -367,9 +366,9 @@ impl WordsDb {
     pub fn complete_middle_out(&self, prefix: &[&str] ) -> Result<Vec<String>> {
         debug!("complete middle out prefix: {:?}", prefix);
         let mut piter = prefix.iter();
-        let first_word = r#try!(into_result(piter.next().map(|x| self.get_word_id(x))));
+        let first_word = into_result(piter.next().map(|x| self.get_word_id(x)))?;
         let _ = piter.next();
-        let last_word = r#try!(into_result(piter.next().map(|x| self.get_word_id(x))));
+        let last_word = into_result(piter.next().map(|x| self.get_word_id(x)))?;
         let middle_filter: Vec<i64> = first_word.iter().chain(last_word.iter()).cloned().collect();
         let middle_word = if middle_filter.is_empty() {
             None
@@ -392,10 +391,9 @@ impl WordsDb {
 
     pub fn complete(&self, prefix: &[&str] ) -> Result<Vec<String>> {
         let filter = self.complete_id_vec(prefix);
-        let words: Vec<Option<String>> =
-            r#try!(self.complete_forward(filter)
+        let words = self.complete_forward(filter)
                      .map(|id| self.get_spelling(id))
-                     .collect());
+                     .collect::<Result<Vec<Option<String>>>>()?;
         Ok(words.into_iter().flat_map(|x| x).collect())
     }
 
@@ -441,7 +439,7 @@ impl WordsDb {
                         Err(e) => warn!("skipping: {:?}", e)
                     }
                 }
-                r#try!(tx.commit());
+                tx.commit()?;
             }
             Err(err) => error!("err: {:?}", err)
         }
@@ -462,12 +460,12 @@ impl WordsDb {
         Self::add_phrase_db(&self.db, phrase)
     }
     fn add_phrase_db(db: &Connection, phrase: &[String] ) -> Result<()> {
-        let v = r#try!(Self::get_phrase_vec(db, phrase));
+        let v = Self::get_phrase_vec(db, phrase)?;
         let v1 = v.iter();
         let v2 = v.iter().skip(1);
         let v3 = v.iter().skip(2);
         for ((w1,w2),w3) in v1.zip(v2).zip(v3) {
-            r#try!(Self::increment_frequency_db(db, &[w1,w2,w3]));
+            Self::increment_frequency_db(db, &[w1,w2,w3])?;
         }
         Ok(())
     }
@@ -490,9 +488,9 @@ impl WordsDb {
 
     // lookup word ids and surround with begin/end 0s
     fn get_phrase_vec(db: &Connection, phrase: &[String]) -> Result<Vec<i64>> {
-        let result: Vec<i64> = r#try!(phrase.iter().map(
+        let result = phrase.iter().map(
             |w| Self::get_or_add_word_id(db, w))
-            .collect());
+            .collect::<Result<Vec<i64>>>()?;
         Ok(vec![0].into_iter().chain(result.into_iter()).chain(vec![0].into_iter()).collect())
     }
 
@@ -530,12 +528,12 @@ impl WordsDb {
             select_field, sql_where);
 
         let mut pick_count: i64 = pick;
-        let mut stmt = r#try!(self.db.prepare(&sql));
+        let mut stmt = self.db.prepare(&sql)?;
 
-        let mut rows = r#try!(stmt.query(&values));
+        let mut rows = stmt.query(&values)?;
         // for result_row in rows {
         while let Some(result_row) = rows.next() {
-            let row = r#try!(result_row);
+            let row = result_row?;
             let freq: i64 = row.get(0);
             if pick_count <= freq {
                 return Ok(row.get(1));
@@ -549,7 +547,7 @@ impl WordsDb {
         let res = Self::get_word_id_db(db, spelling);
         match res {
             Ok(None) => {
-                r#try!(db.execute("insert into words (spelling) values (?)", &[&spelling]));
+                db.execute("insert into words (spelling) values (?)", &[&spelling])?;
                 Ok(db.last_insert_rowid())
             },
             Ok(Some(word_id)) => Ok(word_id),
