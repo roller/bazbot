@@ -1,6 +1,6 @@
 [package]
 name = "bazbot"
-version = "0.2.5"
+version = "0.2.6"
 authors = ["Joel Roller <roller@gmail.com>"]
 license = "CC0-1.0"
 readme = "README.md"
@@ -8,9 +8,9 @@ edition = "2018"
 
 [dependencies]
 irc = "0.12"
-dotenv = "0.13"
+dotenv = "0.15"
 rusqlite = "0.14"
 clap = "2.33"
-rand = "0.6"
+rand = "0.7"
 log = "0.4"
-env_logger = "0.6"
+env_logger = "0.7"
