@@ -1,8 +1,3 @@
-extern crate bazbot;
-extern crate clap;
-extern crate dotenv;
-extern crate env_logger;
-extern crate irc;
 use clap::{App, Arg, SubCommand, ArgMatches, AppSettings};
 use bazbot::markov_words::WordsDb;
 use bazbot::ircconn::IrcConn;
@@ -28,12 +23,13 @@ fn cmd_complete(words: &WordsDb, matches: &ArgMatches) {
     words.print_complete(&prefix);
 }
 
-fn cmd_irc(words: WordsDb, config: Config) {
-    let irc = IrcConn::new_from_config(words, config);
-    irc.run()
+async fn cmd_irc(words: WordsDb, config: Config) {
+    let mut irc = IrcConn::new_from_config(words, config);
+    irc.run2().await
 }
 
-fn main(){
+#[tokio::main]
+async fn main(){
     dotenv::dotenv().ok();
     // log info level by default
     if env::var("RUST_LOG").is_err() {
@@ -95,8 +91,8 @@ Environment
         ("add", Some(subm)) => cmd_add_phrase(&words, subm),
         ("read", Some(subm)) => cmd_read_phrases(&mut words, subm),
         ("complete", Some(subm)) => cmd_complete(&words, subm),
-        ("irc", Some(_)) => cmd_irc(words, cfg.unwrap_or_else(|_|
-            panic!("Couldn't load config file {}", &cfg_file))),
+        ("irc", Some(_)) => cmd_irc(words, cfg.unwrap_or_else(|e|
+            panic!("Couldn't load config file {}: {:?}", &cfg_file, e))).await,
         _ => {
             // Can't use App print_help because we
             // used get_matches instead.

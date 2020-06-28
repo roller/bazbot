@@ -16,9 +16,16 @@ Sorry, there's no installer.  [Rust up][2] and build with cargo.
 cargo build --release
 ```
 
-One dependency not handled by cargo is the openssl library.  See the
-[rust-openssl][3] project for information on compiling for your platform.
+Dependencies on Debian and Ubuntu:
 
+```
+sudo apt install libsqlite3-dev pkg-config libssl-dev
+```
+
+For other platforms, see the crate documentation:
+
+ - [rusqlite][3]
+ - [rust-openssl][4]
 
 # Usage
 
@@ -77,9 +84,10 @@ Example minimum `bazbot.json` config file:
 
 # History
 
-Bazbot was inspired by the [benzo irc bot][4] named baz.
+Bazbot was inspired by the [benzo irc bot][5] named baz.
 
 [1]: https://www.rust-lang.org/
 [2]: https://www.rustup.rs/
-[3]: https://github.com/sfackler/rust-openssl
-[4]: http://benzo.sourceforge.net/
+[3]: https://github.com/rusqlite/rusqlite
+[4]: https://docs.rs/openssl/
+[5]: http://benzo.sourceforge.net/

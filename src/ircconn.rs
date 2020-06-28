@@ -1,43 +1,69 @@
+
 extern crate irc;
 use self::irc::client::prelude::*;
+use irc::error::Result;
+use futures::*;
 
 use std::cell::RefCell;
 use crate::markov_words;
 use crate::markov_words::WordsDb;
+use futures::executor::block_on;
+// use self::irc::proto::prefix::Prefix::ServerName;
 
 pub struct IrcConn {
     words: RefCell<Box<WordsDb>>,
-    server: IrcServer
+    client: Client
 }
 
 impl IrcConn {
-    pub fn new(words: WordsDb, server: IrcServer) -> IrcConn {
+    pub fn new(words: WordsDb, client: Client) -> IrcConn {
         IrcConn {
             words: RefCell::new(Box::new(words)),
-            server
+            client
         }
     }
 
     pub fn new_from_config(words: WordsDb, config: Config) -> IrcConn {
-        let server = IrcServer::from_config(config).unwrap();
+        let client = block_on(async {
+            Client::from_config(config).await.expect("Client from config")
+        });
+
         IrcConn {
             words: RefCell::new(Box::new(words)),
-            server
+            client
         }
     }
 
-    pub fn run(&self) {
-        self.server.identify().unwrap();
-        debug!("identified.");
-        self.server.for_each_incoming(|ok_msg| self.handle_message(&ok_msg)).unwrap()
+
+    pub fn run(&mut self) {
+        block_on( self.run_irc() )
+            .unwrap_or_else(|e| error!("Error running irc: {:?}", e));
     }
 
-    fn handle_message(&self, msg: &Message){
+    pub async fn run2(&mut self) {
+        self.run_irc()
+            .await
+            .unwrap_or_else(|e| error!("Error running irc: {:?}", e));
+    }
+
+    async fn run_irc(&mut self) -> Result<()>
+    {
+        self.client.identify()?;
+        debug!("Identified.");
+        let mut stream = self.client.stream()?;
+        while let Some(message) = stream.next().await.transpose()? {
+            self.handle_message(&message);
+        }
+        Ok(())
+    }
+
+    fn handle_message(&self, msg: &Message) {
+        debug!("Handle message: {:?}", msg);
         if let Some(ref prefix) = msg.prefix {
-            let prefix_info = PrefixInfo::new(prefix);
             match msg.command {
                 Command::JOIN(_, _, _) => info!("join channel {:?}", msg),
-                Command::PRIVMSG(ref target,ref text) => self.privmsg(&prefix_info, target, text),
+                Command::PRIVMSG(ref target,ref text) =>
+                    self.privmsg(prefix, target, text),
                 _ => debug!("ignore: {:?}", msg)
             }
         } else {
@@ -53,7 +79,7 @@ impl IrcConn {
         match result_words {
             Ok(words) => {
                 let response = markov_words::join_phrase(vec![], words);
-                let res = self.server.send_privmsg(target, &response);
+                let res = self.client.send_privmsg(target, &response);
                 if let Err(x) = res {
                     error!("Uhoh sending msg: {:?}",x);
                 }
@@ -62,10 +88,10 @@ impl IrcConn {
         }
     }
 
-    fn privmsg(&self, prefix: &PrefixInfo, target: &str, text: &str) {
+    fn privmsg(&self, prefix: &Prefix, target: &str, text: &str) {
         info!("msg {:?} {} {}", prefix, target, text);
         let phrase = markov_words::tokenize_phrase(text);
-        let nearby = markov_words::find_nearby(self.server.current_nickname(), &phrase);
+        let nearby = markov_words::find_nearby(self.client.current_nickname(), &phrase);
         if nearby.is_empty() {
             let owned_phrase: Vec<String> = phrase.iter().map(ToString::to_string).collect();
             let words = self.words.borrow_mut();
@@ -77,29 +103,4 @@ impl IrcConn {
         }
     }
 
-}
-
-#[derive(Debug)]
-struct PrefixInfo<'a> {
-    // RFC2812 defines this as
-    // prefix     =  servername / ( nickname [ [ "!" user ] "@" host ] )
-    // name can be servername or nickname
-    name: &'a str,
-    user: Option<&'a str>,
-    host: Option<&'a str>
-}
-
-impl<'a> PrefixInfo<'a> {
-    // yeah, no idea how to parse things
-    fn new(s: &'a str) -> PrefixInfo<'a> {
-        let mut name_host = s.splitn(2,'@');
-        let name = name_host.next().unwrap_or("");
-        let host = name_host.next();
-        let mut name_user = name.splitn(2,'!');
-        PrefixInfo {
-            name: name_user.next().unwrap_or(""),
-            user: name_user.next(),
-            host
-        }
-    }
 }

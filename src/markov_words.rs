@@ -192,8 +192,7 @@ impl WordsDb {
     }
     pub fn from_config(optconfig: Option<&Config>) -> WordsDb {
         let db_url: String = optconfig.as_ref()
-            .and_then(|cfg| cfg.options.as_ref())
-            .and_then(|opt| opt.get("words").cloned())
+            .and_then(|opt| opt.options.get("words").cloned())
             .or_else(|| -> Option<String> { env::var("BAZBOT_WORDS").ok() } )
             .unwrap_or_else(|| "bazbot.db".to_string());
         WordsDb::new(db_url)
