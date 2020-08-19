@@ -178,30 +178,75 @@ pub fn find_nearby<'a>(needle: &str, haystack: &[&'a str]) -> Vec<Vec<&'a str>> 
 }
 
 #[derive(Debug)]
-pub struct WordsDb {
-    db: Connection
+pub struct WordsConfig {
+    db_url: String,
+    learn_new_phrases: bool,
 }
+impl WordsConfig {
+
+    // Optional, because irc
+    pub fn from_irc_config(config: &Config) -> WordsConfig {
+        let mut db_url: String = "bazbot.db".to_string();
+        let mut learn_new_phrases = true;
+        let opt_words = config.options
+            .get("words").cloned()
+            .or_else(|| -> Option<String> { env::var("BAZBOT_WORDS").ok() } );
+        db_url = opt_words.unwrap_or(db_url);
+        learn_new_phrases = config.options
+            .get("learn")
+            .map(|l: &String| -> bool {
+                l.parse().unwrap_or_else(|e| {
+                    error!("Couldn't parse learn as bool {}: {}", l, e);
+                    learn_new_phrases
+                })
+            })
+            .unwrap_or(learn_new_phrases);
+        WordsConfig {
+            db_url,
+            learn_new_phrases
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct WordsDb {
+    db: Connection,
+    config: Box<WordsConfig>
+}
+
 
 impl WordsDb {
     pub fn new(db_url: String) -> WordsDb {
         debug!("Open db {}", db_url);
+        let db = Connection::open(&db_url)
+                .expect("Could not open database");
+        let config = WordsConfig {
+            db_url: db_url,
+            learn_new_phrases: true
+        };
         WordsDb {
-            db: Connection::open(db_url)
-                .expect("Could not open database")
+            db,
+            config: Box::new(config)
         }
     }
-    pub fn from_config(optconfig: Option<&Config>) -> WordsDb {
+    pub fn from_config(irc_config: &Config) -> WordsDb {
+        let config = WordsConfig::from_irc_config(irc_config);
+        let db = Connection::open(&config.db_url)
+                .expect("Could not open database");
+        info!("Loading config: {:?}", config);
+        WordsDb {
+            db,
+            config: Box::new(config)
+        }
+    }
+    pub fn from_config_old(optconfig: Option<&Config>) -> WordsDb {
         let db_url: String = optconfig.as_ref()
             .and_then(|opt| opt.options.get("words").cloned())
             .or_else(|| -> Option<String> { env::var("BAZBOT_WORDS").ok() } )
             .unwrap_or_else(|| "bazbot.db".to_string());
         WordsDb::new(db_url)
     }
-    pub fn new_from_env() -> WordsDb {
-        let db_url = env::var("BAZBOT_WORDS")
-            .expect("BAZBOT_WORDS must be set");
-        WordsDb::new(db_url)
-    }
+
     pub fn summary(&self) {
         println!("Summary of {:?}", self);
         let words: Result<i64> = self.db.query_row(

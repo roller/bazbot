@@ -77,7 +77,7 @@ impl<'a> Migrator<'a> {
     }
 
     // Use a different technique for the very first migration:
-    // check sqlite_master table for the existance of the table
+    // check sqlite_master for the existence of the migrations table
     fn base_migration(&self) -> Result<()> {
         let sql = "select name from sqlite_master where type='table' and name='migrations';";
         let res = self.db.query_row(sql, &[], |_| ());

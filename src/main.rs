@@ -42,9 +42,9 @@ async fn main(){
         .arg(Arg::with_name("config")
             .short("c").long("config")
             .takes_value(true)
-            .value_name("FILE.json")
+            .value_name("FILE.toml")
             .required(false)
-            .help("Read config from json file (defaults to env var BAZBOT_CONFIG or bazbot.json)."))
+            .help("Read config from json file (defaults to env var BAZBOT_CONFIG or bazbot.toml)."))
         .setting(AppSettings::SubcommandRequired)
         .subcommand(SubCommand::with_name("summary")
             .about("Summarize database"))
@@ -61,29 +61,36 @@ async fn main(){
             .about("Interact on irc channels"))
         .after_help("
 Files:
+    bazbot.toml
+    or
     bazbot.json
         A valid config file is required to connect to irc.
-        Words db location may be configured as options.words, eg:
-            { \"options\": { \"words\": \"bazbot.db\" } }
         See irc library documentation for more information:
            https://github.com/aatxe/irc
+        The following options are supported:
+         - words - sqlite database to store phrases
+         - learn - learn new phrases from irc
+        e.g. toml:
+        options: { words=\"bazbot.db\" }
+        e.g. json:
+        { \"options\": { \"words\": \"bazbot.db\" } }
     bazbot.db
-        sqlite file with bazbot's brain
+        default sqlite file storing phrases
 
 Environment
     Additional environment will be read from .env
     RUST_LOG        - debug, info, warn, error (default info)
-    BAZBOT_CONFIG   - default json config file location
+    BAZBOT_CONFIG   - default toml or json config file location
     BAZBOT_WORDS    - default sqlite database location")
         .get_matches();
 
     let cfg_file: String = bazargs.value_of_lossy("config")
         .map(|arg| arg.to_string())
         .or_else(|| env::var("BAZBOT_CONFIG").ok())
-        .unwrap_or_else(|| "bazbot.json".to_string());
-    // let cfg = Config::load(&cfg_file).expect(&format!("Couldn't load config file {}", &cfg_file));
-    let cfg = Config::load(&cfg_file);
-    let mut words = WordsDb::from_config(cfg.as_ref().ok());
+        .unwrap_or_else(|| "bazbot.toml".to_string());
+    let cfg = Config::load(&cfg_file).expect(&format!("Couldn't load config file {}", &cfg_file));
+    log::info!("Load config is {:?}", cfg);
+    let mut words = WordsDb::from_config(&cfg);
     words.migrate().expect("Database migration failed");
 
     match bazargs.subcommand() {
@@ -91,12 +98,19 @@ Environment
         ("add", Some(subm)) => cmd_add_phrase(&words, subm),
         ("read", Some(subm)) => cmd_read_phrases(&mut words, subm),
         ("complete", Some(subm)) => cmd_complete(&words, subm),
-        ("irc", Some(_)) => cmd_irc(words, cfg.unwrap_or_else(|e|
-            panic!("Couldn't load config file {}: {:?}", &cfg_file, e))).await,
+        ("irc", Some(_)) => cmd_irc(words, cfg).await,
         _ => {
             // Can't use App print_help because we
             // used get_matches instead.
             println!("Unknown subcommand (try help)");
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn we_dont_know_what_to_test_in_main() {
+        assert!(true);
     }
 }

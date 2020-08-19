@@ -1,6 +1,12 @@
 
 extern crate irc;
-use self::irc::client::prelude::*;
+use self::irc::client::prelude::{
+    Config,
+    Client,
+    Command,
+    Prefix,
+    Message
+};
 use irc::error::Result;
 use futures::*;
 

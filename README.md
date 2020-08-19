@@ -30,36 +30,43 @@ For other platforms, see the crate documentation:
 # Usage
 
 ```
+Bazbot Blabberbot 0.2.6
+
 USAGE:
-    bazbot [FLAGS] [OPTIONS] <SUBCOMMAND>
+    bazbot [OPTIONS] <SUBCOMMAND>
 
 FLAGS:
     -h, --help       Prints help information
     -V, --version    Prints version information
 
 OPTIONS:
-    -c, --config <FILE.json>    Read config from json file (defaults to env var
-                                BAZBOT_CONFIG or bazbot.json).
+    -c, --config <FILE.toml>    Read config from json file (defaults to env var BAZBOT_CONFIG or bazbot.json).
 
 SUBCOMMANDS:
     add         Add a phrase to the markov words database
-    complete    Run a markov chain starting with args
-    help        Prints this message or the help message of the given
-                subcommand(s)
+    complete    Run a markov chain matching args around _
+    help        Prints this message or the help of the given subcommand(s)
     irc         Interact on irc channels
-    read        Read text file with one phrase per line into markov
-                database
+    read        Read text file with one phrase per line into markov database
     summary     Summarize database
 
+
 Files:
+    bazbot.toml
+    or
     bazbot.json
         A valid config file is required to connect to irc.
-        Words db location may be configured as options.words, eg:
-            { "options": { "words": "bazbot.db" } }
         See irc library documentation for more information:
            https://github.com/aatxe/irc
+        The following options are supported:
+         - words - sqlite database to store phrases
+         - learn - learn new phrases from irc
+        e.g. toml:
+        options: { words="bazbot.db" }
+        e.g. json:
+        { "options": { "words": "bazbot.db" } }
     bazbot.db
-        sqlite file with bazbot's brain
+        default sqlite file storing phrases
 
 Environment
     Additional environment will be read from .env
@@ -68,18 +75,27 @@ Environment
     BAZBOT_WORDS    - default sqlite database location
 ```
 
-Example minimum `bazbot.json` config file:
+Example `bazbot.toml` config file:
 
-``` json
-{
-    "nickname": "bazbot",
-    "server": "localhost",
-    "port": 6667,
-    "channels": ["#testbazbot"],
-    "options": {
-        "words": "bazbot.db"
-    }
-}
+``` toml
+nickname: "bazbot",
+server: "localhost",
+port: 6667,
+channels: ["#testbazbot"],
+
+[options]
+## Store phrases in sqlite database
+words = "bazbot.db"
+
+## Learn new phrases, set "false" when using static phrase
+## database that shouldn't be polluted with irc conversation
+learn = "true"
+```
+
+
+The following options in the irc are supported (with defaults shown):
+
+``` toml
 ```
 
 # History
