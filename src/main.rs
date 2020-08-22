@@ -25,7 +25,7 @@ fn cmd_complete(words: &WordsDb, matches: &ArgMatches) {
 
 async fn cmd_irc(words: WordsDb, config: Config) {
     let mut irc = IrcConn::new_from_config(words, config);
-    irc.run2().await
+    irc.run().await
 }
 
 #[tokio::main]
@@ -44,7 +44,7 @@ async fn main(){
             .takes_value(true)
             .value_name("FILE.toml")
             .required(false)
-            .help("Read config from json file (defaults to env var BAZBOT_CONFIG or bazbot.toml)."))
+            .help("Config file (defaults to env var BAZBOT_CONFIG or bazbot.toml)."))
         .setting(AppSettings::SubcommandRequired)
         .subcommand(SubCommand::with_name("summary")
             .about("Summarize database"))
@@ -61,20 +61,15 @@ async fn main(){
             .about("Interact on irc channels"))
         .after_help("
 Files:
-    bazbot.toml
-    or
-    bazbot.json
+    - bazbot.toml or
+    - bazbot.json
         A valid config file is required to connect to irc.
         See irc library documentation for more information:
            https://github.com/aatxe/irc
         The following options are supported:
          - words - sqlite database to store phrases
          - learn - learn new phrases from irc
-        e.g. toml:
-        options: { words=\"bazbot.db\" }
-        e.g. json:
-        { \"options\": { \"words\": \"bazbot.db\" } }
-    bazbot.db
+    - bazbot.db
         default sqlite file storing phrases
 
 Environment
@@ -89,7 +84,6 @@ Environment
         .or_else(|| env::var("BAZBOT_CONFIG").ok())
         .unwrap_or_else(|| "bazbot.toml".to_string());
     let cfg = Config::load(&cfg_file).expect(&format!("Couldn't load config file {}", &cfg_file));
-    log::info!("Load config is {:?}", cfg);
     let mut words = WordsDb::from_config(&cfg);
     words.migrate().expect("Database migration failed");
 

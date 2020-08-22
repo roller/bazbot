@@ -40,13 +40,7 @@ impl IrcConn {
         }
     }
 
-
-    pub fn run(&mut self) {
-        block_on( self.run_irc() )
-            .unwrap_or_else(|e| error!("Error running irc: {:?}", e));
-    }
-
-    pub async fn run2(&mut self) {
+    pub async fn run(&mut self) {
         self.run_irc()
             .await
             .unwrap_or_else(|e| error!("Error running irc: {:?}", e));

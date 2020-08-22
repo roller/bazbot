@@ -30,7 +30,7 @@ For other platforms, see the crate documentation:
 # Usage
 
 ```
-Bazbot Blabberbot 0.2.6
+Bazbot Blabberbot 0.3.0
 
 USAGE:
     bazbot [OPTIONS] <SUBCOMMAND>
@@ -40,7 +40,7 @@ FLAGS:
     -V, --version    Prints version information
 
 OPTIONS:
-    -c, --config <FILE.toml>    Read config from json file (defaults to env var BAZBOT_CONFIG or bazbot.json).
+    -c, --config <FILE.toml>    Read config from json file (defaults to env var BAZBOT_CONFIG or bazbot.toml).
 
 SUBCOMMANDS:
     add         Add a phrase to the markov words database
@@ -52,26 +52,21 @@ SUBCOMMANDS:
 
 
 Files:
-    bazbot.toml
-    or
-    bazbot.json
+    - bazbot.toml or
+    - bazbot.json
         A valid config file is required to connect to irc.
         See irc library documentation for more information:
            https://github.com/aatxe/irc
         The following options are supported:
          - words - sqlite database to store phrases
          - learn - learn new phrases from irc
-        e.g. toml:
-        options: { words="bazbot.db" }
-        e.g. json:
-        { "options": { "words": "bazbot.db" } }
-    bazbot.db
+    - bazbot.db
         default sqlite file storing phrases
 
 Environment
     Additional environment will be read from .env
     RUST_LOG        - debug, info, warn, error (default info)
-    BAZBOT_CONFIG   - default json config file location
+    BAZBOT_CONFIG   - default toml or json config file location
     BAZBOT_WORDS    - default sqlite database location
 ```
 

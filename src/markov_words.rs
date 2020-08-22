@@ -239,13 +239,6 @@ impl WordsDb {
             config: Box::new(config)
         }
     }
-    pub fn from_config_old(optconfig: Option<&Config>) -> WordsDb {
-        let db_url: String = optconfig.as_ref()
-            .and_then(|opt| opt.options.get("words").cloned())
-            .or_else(|| -> Option<String> { env::var("BAZBOT_WORDS").ok() } )
-            .unwrap_or_else(|| "bazbot.db".to_string());
-        WordsDb::new(db_url)
-    }
 
     pub fn summary(&self) {
         println!("Summary of {:?}", self);
@@ -463,6 +456,12 @@ impl WordsDb {
     }
 
     pub fn read_file(&mut self, filename: &str) -> Result<()> {
+        if !self.config.learn_new_phrases {
+            error!("Abort, learning phrases is disabled by config");
+            // avoiding a new error type, return error
+            // similar to modifying a read-only database
+            return Err(rusqlite::Error::InvalidQuery);
+        }
         let res = fs::File::open(&filename);
         let mut lines = 0;
         match res {
@@ -493,15 +492,24 @@ impl WordsDb {
 
     // add line as a phrase, assuming string separated by whitespace
     pub fn add_line(&self, line: &str) -> Result<()> {
-        Self::add_line_db(&self.db, line)
+        if self.config.learn_new_phrases {
+            Self::add_line_db(&self.db, line)
+        } else {
+            Ok(())
+        }
     }
+
     fn add_line_db(db: &Connection, line: &str) -> Result<()> {
         let words: Vec<String> = line.split_whitespace().map(ToString::to_string).collect();
         Self::add_phrase_db(db, &words)
     }
 
     pub fn add_phrase(&self, phrase: &[String] ) -> Result<()> {
-        Self::add_phrase_db(&self.db, phrase)
+        if self.config.learn_new_phrases {
+            Self::add_phrase_db(&self.db, phrase)
+        } else {
+            Ok(())
+        }
     }
     fn add_phrase_db(db: &Connection, phrase: &[String] ) -> Result<()> {
         let v = Self::get_phrase_vec(db, phrase)?;
@@ -629,6 +637,15 @@ mod tests {
         w.add_line("a b c d e").expect("read line");
         w
     }
+    fn no_learn() -> WordsDb {
+        let mut w = memdb();
+        w.config = Box::new(WordsConfig {
+            learn_new_phrases: false,
+            .. *w.config
+        });
+        w.migrate().expect("migrate");
+        w
+    }
 
     #[test]
     fn summary() {
@@ -712,5 +729,12 @@ mod tests {
         assert_eq!(empty, filter);
     }
 
+    #[test]
+    fn add_phrase_without_learn() {
+        let w = no_learn();
+        w.add_line("a b c d e").expect("read line");
+        let complete = w.new_complete_middle_out(vec![]);
+        assert_eq!(vec![""], complete.expect("successful none"));
+    }
 
 }
